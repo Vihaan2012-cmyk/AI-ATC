@@ -80,6 +80,7 @@ function fpInfoMessage(fp: FlightPlan, weather: Record<string, MetarInfo>) {
     ofp: fp.ofp ?? {},
     sections: fp.infoSections ?? [],
     weights: fp.weights ?? {},
+    rawOfp: fp.rawOfp ?? '',
     weather: { origin: wx(fp.origin), dest: wx(fp.destination) },
   };
 }
@@ -160,10 +161,13 @@ function dashboardData(deps: CommsDeps, lastPos: { lat: number; lon: number; hdg
     recent: log.slice(0, 20).map((e) => ({
       callsign: e.callsign, origin: e.origin, destination: e.destination,
       readbackAccuracy: num(e.readbackAccuracy), declaredEmergency: !!e.declaredEmergency, savedAt: e.savedAt,
-      // pass through any richer fields the app saved (aircraft, route, cruise, etc.)
+      // pass through any richer fields the app saved (aircraft, route, cruise, full OFP, etc.)
       aircraft: e.aircraft ?? null, route: e.route ?? null, cruiseAltitudeFt: e.cruiseAltitudeFt ?? null,
       flightRules: e.flightRules ?? null, readbacksCorrect: e.readbacksCorrect ?? null,
-      readbacksExpected: e.readbacksExpected ?? null,
+      readbacksExpected: e.readbacksExpected ?? null, alternate: e.alternate ?? null,
+      initialAlt: e.initialAlt ?? null, ofp: e.ofp ?? null, sections: e.sections ?? null, weights: e.weights ?? null,
+      transcript: typeof e.transcript === 'string' ? e.transcript.slice(0, 8000) : null,
+      rawOfp: typeof e.rawOfp === 'string' ? e.rawOfp.slice(0, 40000) : null,
     })),
     coords,
   };

@@ -166,6 +166,27 @@ function toNumber(v: unknown, fallback: number): number {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
+/**
+ * Pull SimBrief's raw OFP briefing text. SimBrief returns it as HTML in `text.plan_html`
+ * (a monospace <pre>-style document). We strip tags + decode entities to plain text so the
+ * dashboard can show the real, full OFP verbatim.
+ */
+function extractRawOfp(ofp: SimBriefOfp): string | undefined {
+  const html = (ofp as { text?: { plan_html?: string } }).text?.plan_html;
+  if (!html || typeof html !== 'string') return undefined;
+  const text = html
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(div|p|tr|h\d|li)>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;/g, "'").replace(/&quot;/g, '"')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .trim();
+  return text.length > 20 ? text : undefined;
+}
+
 function normalize(ofp: SimBriefOfp): FlightPlan {
   const callsign =
     ofp.atc?.callsign ||
@@ -190,6 +211,7 @@ function normalize(ofp: SimBriefOfp): FlightPlan {
     weights: { zfw: str(ofp.weights?.est_zfw), tow: str(ofp.weights?.est_tow), fuel: str(ofp.fuel?.plan_ramp), units: str(ofp.params?.units) },
     ofp: buildOfpSummary(ofp, fixes),
     infoSections: buildInfoSections(ofp, fixes),
+    rawOfp: extractRawOfp(ofp),
     originLat: num(ofp.origin?.pos_lat),
     originLon: num(ofp.origin?.pos_long),
     destLat: num(ofp.destination?.pos_lat),

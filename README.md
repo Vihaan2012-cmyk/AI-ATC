@@ -22,8 +22,9 @@ ATC across a full gate-to-gate flight. Everything runs on your machine — no cl
 - **SimBrief** flight plans, live **weather/ATIS**, and **Hoppie CPDLC** datalink.
 - **Voice**: system TTS or downloadable **Piper HD** voices cast per controller; **push-to-talk** speech input.
 - **Local AI, your choice**: Ollama, or any OpenAI-compatible local server (LM Studio, llama.cpp, Jan,
-  KoboldCpp, vLLM, GPT4All…).
+  KoboldCpp, vLLM, GPT4All…) — plus an optional **custom ATC model** you can train yourself (see below).
 - Persistent **logbook**, ambient radio chatter, and realism/strictness settings.
+- **Flight dashboard** — a local web page with a 3D globe of your flown routes, stats, and per-flight OFPs.
 
 ## Prerequisites
 
@@ -60,11 +61,38 @@ Start with `"Delivery, <callsign>, request IFR clearance to <dest>, information 
 clearance (include the squawk), then talk to each controller as you're handed off. The app tracks state,
 validates readbacks, and uses your sim's real frequencies and runways.
 
+## Flight dashboard
+
+A local, career-style **flight dashboard** is served by the brain at
+**`http://localhost:8742/dashboard`** (also opens from **Setup → Open flight dashboard**). It shows:
+
+- a **3D globe** with your flown routes as arcs (one line per city-pair; thicker = more flights) and
+  glowing airport pins,
+- **stat cards** — total flights, airports visited, average readback accuracy, emergencies,
+- **top routes** and a **flight log**, and
+- a **full SimBrief OFP** per flight — click *View full OFP* to read the raw briefing (route, navlog,
+  fuel/weights, procedures, weather) plus the radio transcript.
+
+It's 100% local — no accounts, no cloud. Data comes from your own logbook (`%APPDATA%\Air Traffic
+Control\logbook.json`); save a flight from the app to add it.
+
+## Custom ATC model (optional, faster)
+
+Because the deterministic engine owns all the facts, the LLM only has one narrow job (turn pilot
+text → intent). You can **fine-tune a small model for just that**, getting a result that's *more
+accurate on messy phrasing and several times faster* than the 14B — which matters since the model
+runs on CPU while MSFS uses the GPU.
+
+The [`training/`](training/) folder has the whole pipeline (synthetic data → QLoRA → Ollama). A
+reference 1.5B fine-tune hits **~97% on novel input at ~3× the speed of qwen2.5:14b**. See
+[training/README.md](training/README.md). Once built: `ollama create atc-nlu -f training/Modelfile`,
+then set `OLLAMA_MODEL=atc-nlu`.
+
 ## Building from source
 
 ```powershell
 npm install
-npm run server          # the brain (SimConnect + AI + comms)
+npm run server          # the brain (SimConnect + AI + comms; serves the widget + dashboard)
 cd app && npm start     # the desktop app
 ```
 

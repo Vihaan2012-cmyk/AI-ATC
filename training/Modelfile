@@ -1,21 +1,20 @@
 # Ollama Modelfile for the fine-tuned ATC NLU model.
 #
-# After training + merging + converting to GGUF (see README.md), point FROM at your GGUF file
-# and create the model:
+# Modern Ollama (>= ~0.1.30) imports HF safetensors directly and converts to GGUF on create —
+# no llama.cpp needed. Point FROM at the merged model dir, then:
 #
 #   ollama create atc-nlu -f training/Modelfile
 #
-# Then set it in the app: OLLAMA_MODEL=atc-nlu  (or pick it in Setup > AI model).
+# (If you converted to GGUF yourself instead, change FROM to ./out/atc-merged.gguf.)
+# Then set OLLAMA_MODEL=atc-nlu in .env or Setup -> AI model.
+FROM ./out/atc-lora/checkpoint-408-merged
 
-FROM ./out/atc-merged.gguf
-
-# Deterministic, single-purpose classifier behaviour.
 PARAMETER temperature 0
 PARAMETER top_p 0.1
 PARAMETER num_predict 64
-PARAMETER stop "}"
+# NOTE: do NOT add `PARAMETER stop "}"` — with Ollama's JSON mode it truncates the closing
+# brace and breaks JSON parsing. JSON mode already stops at the right place.
 
-# Hard scope: this model is an ATC NLU classifier, never a chatbot.
 SYSTEM """You are the natural-language unit of an air-traffic-control system. Your only job is to
 classify a single pilot radio transmission into one ATC intent and return JSON. You never chat,
 explain, or answer general questions. Non-ATC input is classified as "unknown"."""

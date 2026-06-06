@@ -54,6 +54,8 @@ export interface FlightPlan {
   ofp?: OfpSummary;
   /** Comprehensive OFP data for the flyout (exact values, grouped). */
   infoSections?: InfoSection[];
+  /** Raw SimBrief OFP document as plain text (the full briefing), if available. */
+  rawOfp?: string;
   /** Origin/destination coordinates + route fixes, for the flight-plan display. */
   originLat?: number;
   originLon?: number;

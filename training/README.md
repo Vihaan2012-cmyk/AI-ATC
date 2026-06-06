@@ -38,12 +38,17 @@ prompt the brain sends, so the result is a drop-in.
 ### 2. Fine-tune (Python — needs an NVIDIA GPU, or CPU with patience)
 
 ```powershell
-python -m venv .venv ; .venv\Scripts\activate
-# GPU users: install a CUDA torch build from https://pytorch.org first
+# Use Python 3.10-3.12 (NOT 3.13/3.14 — PyTorch/bitsandbytes have no stable wheels there yet).
+py -3.12 -m venv .venv ; .venv\Scripts\activate
+pip install torch --index-url https://download.pytorch.org/whl/cu121   # GPU (RTX etc.)
 pip install -r training/requirements.txt
-python training/train_qlora.py                  # -> training/out/atc-lora
-python training/train_qlora.py --merge          # -> training/out/atc-merged
+python training/train_qlora.py                  # trains -> training/out/atc-lora/checkpoint-*
+python training/train_qlora.py --merge --out training/out/atc-lora/checkpoint-<N>  # -> ...-merged
 ```
+
+Training auto-stops when held-out accuracy plateaus and keeps the best checkpoint. Reference run:
+**Qwen2.5-1.5B, 5.5 GB VRAM, ~99% on the synthetic eval after one epoch, ~97% on hand-written novel
+phrasings** after one targeted-data iteration (see `stress_test.py`).
 
 **VRAM budget.** Defaults are tuned to fit **~5 GB** (1.5B base, 4-bit QLoRA, batch 2, gradient
 checkpointing) so an 8 GB card keeps ~3 GB free for your display while training. Control it:
@@ -58,30 +63,46 @@ Rough fit: **0.5B ≈ 2 GB · 1.5B ≈ 3.5 GB · 3B ≈ 6 GB** (training, 4-bit)
 hard-caps the process so it stays in budget instead of grabbing the whole card. If you hit an
 out-of-memory error, drop `--batch` to 1, lower `--max-len`, or use a smaller `--base`.
 
-### 3. Convert to GGUF (for Ollama)
+### 3. Load into Ollama (no llama.cpp needed)
 
-Use [llama.cpp](https://github.com/ggerganov/llama.cpp)'s converter on the merged model:
-
-```powershell
-python llama.cpp/convert_hf_to_gguf.py training/out/atc-merged --outfile training/out/atc-merged.gguf --outtype q8_0
-```
-
-### 4. Load into Ollama and use it
+Modern Ollama (≈0.1.30+) imports HF safetensors directly and converts to GGUF on `create` — so you
+can skip llama.cpp entirely. Point the Modelfile's `FROM` at your merged dir and:
 
 ```powershell
 ollama create atc-nlu -f training/Modelfile
 ```
-Then set **`OLLAMA_MODEL=atc-nlu`** in `.env` (or choose it in **Setup → AI model**). Done — the
-brain now uses your fast custom model. Validate with:
+
+(If you prefer GGUF yourself, convert with [llama.cpp](https://github.com/ggerganov/llama.cpp)'s
+`convert_hf_to_gguf.py` and set `FROM ./out/atc-merged.gguf` instead.)
+
+> **Gotcha:** do **not** add `PARAMETER stop "}"` to the Modelfile. With Ollama's JSON mode it cuts
+> off the closing brace and breaks JSON parsing. JSON mode already stops correctly.
+
+### 4. Use it
+
+Set **`OLLAMA_MODEL=atc-nlu`** in `.env` (or choose it in **Setup → AI model**) and restart the brain.
+Validate quickly:
 
 ```powershell
-npm run spike:ollama          # reachability + tok/s
+python training/stress_test.py --model training/out/atc-lora/checkpoint-<N>   # offline accuracy
+npm run spike:ollama                                                           # live, via Ollama
 ```
+
+## Results (reference run)
+
+| Model        | NLU accuracy (novel input) | Latency / call |
+| ------------ | -------------------------- | -------------- |
+| `atc-nlu` (1.5B fine-tune) | ~97%          | ~430 ms        |
+| `qwen2.5:14b` (general)    | good          | ~1270 ms (GPU) |
+
+The custom model is **~3× faster on GPU** (and far more on CPU, where the 14b actually runs since MSFS
+takes the GPU) **and more accurate on messy ATC phrasing** — because it's trained for exactly this one job.
 
 ## Notes
 
-- **Speed:** a Q8 1.5B model is typically 5–15× faster than the 14b on CPU; a 0.5B is faster still.
-- **Quality:** more data helps the messy cases most. Bump `--n` and re-train if odd phrasings slip.
+- **Quality:** more *variety* helps the messy cases most. Use `--teacher`, add phrasing templates to
+  `gen-data.mjs`, and re-train if odd phrasings slip — measure with `stress_test.py`, don't guess.
+- **Smaller/faster:** train `--base Qwen/Qwen2.5-0.5B-Instruct` for an even snappier model.
 - **NLG too?** This pipeline targets NLU (intent parsing), which is where the LLM actually runs in
   the hot path; phraseology is template-based in the engine. The same approach extends to NLG if you
   later route phrasing through the model — just add those pairs to the generator.
