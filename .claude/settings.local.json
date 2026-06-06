@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(npm run typecheck 2>&1)",
+      "PowerShell(npm run demo 2>&1)",
+      "PowerShell(npm run sim-test VOBL VOMM 2>&1)",
+      "PowerShell(winget install --id Ollama.Ollama -e --silent --accept-package-agreements --accept-source-agreements 2>&1)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "PowerShell($env:ELECTRON_RUN_AS_NODE=$null; npx tsc --noEmit -p tsconfig.json)"
+    ]
+  }
+}

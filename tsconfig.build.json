@@ -1,0 +1,14 @@
+{
+  // Production build of the brain only (no spikes). Emits dist/brain/*.js so the
+  // packaged Electron app can run dist/brain/serve.js. See app/ packaging config.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "noEmit": false,
+    "sourceMap": false,
+    "declaration": false
+  },
+  "include": ["src/**/*"],
+  "exclude": ["spikes/**/*", "src/setup/**/*"]
+}

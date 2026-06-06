@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MSFS AI ATC — Setup</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { font: 15px/1.5 system-ui, sans-serif; background: #0f1620; color: #e6edf3; margin: 0; }
+  .wrap { max-width: 680px; margin: 0 auto; padding: 28px 20px 60px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: #8b98a9; margin: 0 0 24px; }
+  fieldset { border: 1px solid #243140; border-radius: 10px; padding: 16px 18px; margin: 0 0 18px; }
+  legend { padding: 0 8px; color: #7ee3a7; font-weight: 600; }
+  label { display: block; margin: 12px 0 4px; font-weight: 600; font-size: 13px; }
+  .hint { color: #8b98a9; font-weight: 400; font-size: 12px; }
+  input[type=text], input[type=password], select {
+    width: 100%; padding: 9px 11px; border-radius: 8px; border: 1px solid #2b3a4d;
+    background: #0b1118; color: #e6edf3; font: inherit;
+  }
+  .row { display: flex; gap: 12px; }
+  .row > * { flex: 1; }
+  .checks label { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; margin-right: 16px; }
+  .checks input { width: auto; }
+  button { font: inherit; font-weight: 600; border: 0; border-radius: 8px; padding: 10px 16px; cursor: pointer; }
+  .primary { background: #2563eb; color: #fff; }
+  .ghost { background: #1b2735; color: #cdd9e5; border: 1px solid #2b3a4d; }
+  .hidden { display: none; }
+  #status { margin-top: 14px; padding: 10px 12px; border-radius: 8px; font-size: 14px; }
+  .ok { background: #10331f; color: #7ee3a7; }
+  .err { background: #3a1518; color: #ff9aa2; }
+  .pill { font-size: 11px; padding: 2px 7px; border-radius: 99px; background:#1b2735; color:#8b98a9; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>MSFS AI ATC — Setup</h1>
+  <p class="sub">Configure your local AI, flight plan, and navdata. Writes <code>.env</code> in the project root.</p>
+
+  <fieldset>
+    <legend>AI backend <span class="pill">local / downloadable only</span></legend>
+    <label>Provider</label>
+    <select id="provider">
+      <option value="ollama">Ollama</option>
+      <option value="openai-compatible">OpenAI-compatible local server (LM Studio, llama.cpp, Jan, KoboldCpp, vLLM…)</option>
+    </select>
+
+    <div id="ollamaFields">
+      <label>Ollama host</label>
+      <input type="text" id="ollamaHost" placeholder="http://127.0.0.1:11434" />
+      <label>Model <button type="button" class="ghost" id="refreshModels" style="padding:2px 8px;font-size:12px;margin-left:6px;">refresh</button>
+        <span class="hint" id="modelHint"></span></label>
+      <input type="text" id="ollamaModel" list="modelList" placeholder="qwen2.5:14b" />
+      <datalist id="modelList"></datalist>
+    </div>
+
+    <div id="openaiFields" class="hidden">
+      <label>Base URL <span class="hint">e.g. http://localhost:1234/v1 (LM Studio)</span></label>
+      <input type="text" id="llmBaseUrl" placeholder="http://localhost:1234/v1" />
+      <div class="row">
+        <div><label>Model</label><input type="text" id="llmModel" placeholder="(loaded model)" /></div>
+        <div><label>API key <span class="hint">usually blank</span></label><input type="password" id="llmApiKey" /></div>
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Flight plan</legend>
+    <label>SimBrief username <span class="hint">we fetch your latest OFP; blank = built-in sample</span></label>
+    <input type="text" id="simbrief" placeholder="your SimBrief username" />
+  </fieldset>
+
+  <fieldset>
+    <legend>Navdata sources <span class="pill">ordered fallback</span></legend>
+    <p class="hint" style="margin:4px 0 8px;">First source with data wins (priority order: sim → dfd → mock).</p>
+    <div class="checks">
+      <label><input type="checkbox" id="srcSim" value="sim" /> sim <span class="hint">MSFS default via SimConnect</span></label>
+      <label><input type="checkbox" id="srcDfd" value="dfd" /> dfd <span class="hint">Navigraph/aircraft DFD</span></label>
+      <label><input type="checkbox" id="srcMock" value="mock" /> mock <span class="hint">offline placeholder</span></label>
+    </div>
+    <label>DFD path <span class="hint">only if 'dfd' is enabled</span></label>
+    <input type="text" id="navdataPath" placeholder="./navdata/cycle.s3db" />
+  </fieldset>
+
+  <button class="primary" id="save">Save .env</button>
+  <div id="status" class="hidden"></div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+function toggleProvider() {
+  const p = $('provider').value;
+  $('ollamaFields').classList.toggle('hidden', p !== 'ollama');
+  $('openaiFields').classList.toggle('hidden', p !== 'openai-compatible');
+}
+
+async function loadModels() {
+  const host = $('ollamaHost').value || 'http://127.0.0.1:11434';
+  $('modelHint').textContent = 'loading…';
+  try {
+    const r = await fetch('/api/ollama-models?host=' + encodeURIComponent(host));
+    const j = await r.json();
+    const dl = $('modelList');
+    dl.innerHTML = '';
+    (j.models || []).forEach((m) => { const o = document.createElement('option'); o.value = m; dl.appendChild(o); });
+    $('modelHint').textContent = j.models && j.models.length ? (j.models.length + ' installed') : 'none found — run: ollama pull qwen2.5:14b';
+  } catch {
+    $('modelHint').textContent = 'Ollama not reachable';
+  }
+}
+
+function setStatus(msg, ok) {
+  const el = $('status');
+  el.textContent = msg;
+  el.className = ok ? 'ok' : 'err';
+  el.classList.remove('hidden');
+}
+
+async function save() {
+  const provider = $('provider').value;
+  const sources = ['srcSim', 'srcDfd', 'srcMock'].filter((id) => $(id).checked).map((id) => $(id).value);
+  const payload = {
+    LLM_PROVIDER: provider,
+    OLLAMA_HOST: $('ollamaHost').value.trim(),
+    OLLAMA_MODEL: provider === 'ollama' ? $('ollamaModel').value.trim() : undefined,
+    LLM_BASE_URL: provider === 'openai-compatible' ? $('llmBaseUrl').value.trim() : '',
+    LLM_API_KEY: provider === 'openai-compatible' ? $('llmApiKey').value : '',
+    LLM_MODEL: provider === 'openai-compatible' ? $('llmModel').value.trim() : '',
+    SIMBRIEF_USERNAME: $('simbrief').value.trim(),
+    NAVDATA_SOURCES: (sources.length ? sources : ['sim', 'mock']).join(','),
+    NAVDATA_PATH: $('navdataPath').value.trim(),
+  };
+  try {
+    const r = await fetch('/api/save', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+    const j = await r.json();
+    if (j.ok) setStatus('Saved .env ✓  You can close this tab and run: npm run brain', true);
+    else setStatus('Save failed: ' + (j.error || 'unknown'), false);
+  } catch (e) {
+    setStatus('Save failed: ' + e.message, false);
+  }
+}
+
+async function init() {
+  const cfg = await (await fetch('/api/config')).json();
+  $('provider').value = cfg.LLM_PROVIDER || 'ollama';
+  $('ollamaHost').value = cfg.OLLAMA_HOST || 'http://127.0.0.1:11434';
+  $('ollamaModel').value = cfg.OLLAMA_MODEL || 'qwen2.5:14b';
+  $('llmBaseUrl').value = cfg.LLM_BASE_URL || '';
+  $('llmModel').value = cfg.LLM_MODEL || '';
+  $('llmApiKey').value = cfg.LLM_API_KEY || '';
+  $('simbrief').value = cfg.SIMBRIEF_USERNAME || '';
+  $('navdataPath').value = cfg.NAVDATA_PATH || './navdata/cycle.s3db';
+  const sources = (cfg.NAVDATA_SOURCES || 'sim,mock').split(',').map((s) => s.trim());
+  $('srcSim').checked = sources.includes('sim');
+  $('srcDfd').checked = sources.includes('dfd');
+  $('srcMock').checked = sources.includes('mock');
+  toggleProvider();
+  loadModels();
+}
+
+$('provider').addEventListener('change', toggleProvider);
+$('refreshModels').addEventListener('click', loadModels);
+$('save').addEventListener('click', save);
+init();
+</script>
+</body>
+</html>

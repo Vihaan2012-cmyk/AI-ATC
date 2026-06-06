@@ -1,0 +1,31 @@
+# deps / build
+node_modules/
+dist/
+*.tsbuildinfo
+
+# electron-builder packaging artifacts
+app/staging/
+app/release/
+
+# env
+.env
+.env.local
+
+# Navigraph navdata — licensed for personal use, do NOT commit
+navdata/
+*.s3db
+*.db
+*.sqlite
+
+# local caches
+cache/
+
+# logs / os
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# stray electron stdout/stderr dumps
+app/el.out.txt
+app/el.err.txt

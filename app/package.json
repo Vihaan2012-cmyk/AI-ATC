@@ -1,0 +1,64 @@
+{
+  "name": "msfs-ai-atc-widget",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Frameless always-on-top desktop app for MSFS AI ATC.",
+  "main": "main.js",
+  "author": "MSFS AI ATC",
+  "scripts": {
+    "start": "set \"ELECTRON_RUN_AS_NODE=\" && electron .",
+    "dist": "node build-resources.js && set \"ELECTRON_RUN_AS_NODE=\" && electron-builder",
+    "dist:dir": "node build-resources.js && set \"ELECTRON_RUN_AS_NODE=\" && electron-builder --dir"
+  },
+  "dependencies": {
+    "extract-zip": "^2.0.1"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.msfsaiatc.app",
+    "productName": "Air Traffic Control",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "piper.js",
+      "wizard.html",
+      "node_modules/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "staging/brain",
+        "to": "brain"
+      },
+      {
+        "from": "staging/widget",
+        "to": "widget"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "Air-Traffic-Control-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Air Traffic Control"
+    }
+  }
+}

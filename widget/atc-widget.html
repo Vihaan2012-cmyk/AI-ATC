@@ -1,0 +1,801 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Air Traffic Control</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root { --accent: #6f8cff; --g1: #2fb6ff; --g2: #9b5cff; --fs: 14px; }
+  .grad { background: linear-gradient(135deg, var(--g1), var(--g2)); }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font: var(--fs)/1.5 "Inter", "Segoe UI", system-ui, sans-serif;
+    color: #d8e2ee; background: transparent;
+  }
+  .mono { font-family: "Cascadia Mono", "Consolas", ui-monospace, monospace; }
+
+  .shell {
+    position: fixed; inset: 0; display: flex;
+    background: #0c1118; border: 1px solid #1f2c3a; border-radius: 12px; overflow: hidden;
+  }
+  .mainpanel { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+  .accentbar { flex: 0 0 auto; height: 3px; background: linear-gradient(90deg, var(--g1), var(--g2)); }
+
+  /* Title bar */
+  .bar {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 9px;
+    padding: 9px 12px; background: #10171f; border-bottom: 1px solid #1d2735;
+    -webkit-app-region: drag;
+  }
+  .brand { display: flex; align-items: center; gap: 8px; }
+  .brand svg { width: 18px; height: 18px; }
+  .brand .bn {
+    font-family: "Cascadia Mono", "Consolas", ui-monospace, monospace;
+    font-size: 12px; font-weight: 700; color: #eaf2fb;
+    background: #0e1a26; padding: 3px 8px;
+    border: 1px solid transparent; border-image: linear-gradient(135deg, var(--g1), var(--g2)) 1;
+  }
+  .grow { flex: 1; }
+  .stat { display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; color: #ff5f73; -webkit-app-region: no-drag; }
+  .stat .led { width: 8px; height: 8px; border-radius: 50%; background: currentColor; box-shadow: 0 0 7px currentColor; }
+  .stat.on { color: var(--accent); }
+  .winctl { display: none; gap: 4px; -webkit-app-region: no-drag; }
+  .wc { width: 24px; height: 24px; border: 0; border-radius: 6px; background: #18222e; color: #b7c6d6; font-size: 13px; cursor: pointer; }
+  .wc:hover { background: #21303f; } #wcClose:hover { background: #b5364a; color: #fff; }
+
+  /* Tabs */
+  .tabs { flex: 0 0 auto; display: flex; background: #0d141d; border-bottom: 1px solid #1c2633; }
+  .tab { flex: 1; padding: 9px 0; text-align: center; font-size: 11px; font-weight: 700; letter-spacing: 1px; color: #6f8197; background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer; }
+  .tab.active { color: #eaf2fb; border-image: linear-gradient(90deg, var(--g1), var(--g2)) 1; }
+
+  .views { flex: 1 1 auto; min-height: 0; position: relative; }
+  .view { position: absolute; inset: 0; display: none; flex-direction: column; }
+  .view.active { display: flex; }
+
+  /* ---- Comms view ---- */
+  .radio { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; padding: 9px 13px; background: #0e1722; border-bottom: 1px solid #182433; }
+  .radio .cs { font-weight: 700; color: #eaf2fb; letter-spacing: .3px; }
+  .radio .rt { color: #6f8197; font-size: 12px; }
+  .radio .stn { color: var(--accent); font-weight: 700; font-size: 11px; letter-spacing: .6px; text-transform: uppercase; }
+  .radio .freq { margin-left: auto; font-size: 16px; font-weight: 700; color: #74e6c2; letter-spacing: 1px; }
+  .radio .freq:empty::after { content: "---.---"; color: #3a4a5c; }
+
+  #log { flex: 1 1 auto; overflow-y: auto; padding: 12px 13px; display: flex; flex-direction: column; gap: 10px; }
+  #log::-webkit-scrollbar { width: 7px; } #log::-webkit-scrollbar-thumb { background: #1f2c3a; border-radius: 7px; }
+  .entry { border-left: 2px solid #2a3b4d; padding: 2px 0 2px 10px; }
+  .entry.atc { border-left-color: var(--accent); }
+  .entry.you { border-left-color: #e0a14a; }
+  .entry.sys { border-left-color: transparent; text-align: center; color: #6f8197; font-size: 12px; }
+  .entry.chatter { border-left-color: #34465a; opacity: .62; }
+  .entry.chatter .tag { color: #7d93a8; } .entry.chatter .ebody { color: #8ea3b8; font-style: italic; }
+  .entry.cpdlc { border-left-color: #43d17a; }
+  .entry.cpdlc .tag { color: #43d17a; } .entry.cpdlc .ebody { white-space: pre-wrap; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+  .emeta { display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px; }
+  .emeta .tag { font-size: 10px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; }
+  .entry.atc .tag { color: var(--accent); } .entry.you .tag { color: #e0a14a; }
+  .emeta .ef { font-size: 10px; color: #8aa; }
+  .emeta .et { margin-left: auto; font-size: 10px; color: #56697d; }
+  .ebody { color: #dbe6f1; }
+
+  .quick { flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: 7px; padding: 9px 12px 0; }
+  .q { font-size: 12px; font-weight: 600; color: #cfe; background: #122130; border: 1px solid #21384a; border-radius: 7px; padding: 7px 11px; cursor: pointer; }
+  .q:hover { border-color: var(--accent); color: #eafff8; }
+
+  .composer { flex: 0 0 auto; display: flex; gap: 8px; padding: 10px 12px 12px; }
+  #input { flex: 1; padding: 11px 13px; border-radius: 9px; border: 1px solid #243747; background: #0f1925; color: #fff; font: inherit; outline: none; }
+  #input:focus { border-color: var(--accent); }
+  #input::placeholder { color: #5f7388; }
+  #send { min-width: 46px; border: 0; border-radius: 9px; cursor: pointer; background: linear-gradient(135deg, var(--g1), var(--g2)); color: #fff; font-weight: 800; }
+  #send[disabled] { opacity: .4; }
+  #mic { width: 42px; border: 1px solid #243747; border-radius: 9px; cursor: pointer; background: #0f1925; color: #cfe0f0; font-size: 16px; line-height: 1; transition: background .15s, border-color .15s, box-shadow .15s; }
+  #mic:hover { border-color: var(--accent); }
+  #mic.listening { background: linear-gradient(135deg, #ff5d6c, #ff2d55); border-color: #ff2d55; color: #fff; box-shadow: 0 0 0 0 rgba(255,45,85,.6); animation: micpulse 1.1s ease-out infinite; }
+  #mic.unsupported { opacity: .35; cursor: default; }
+  @keyframes micpulse { 0% { box-shadow: 0 0 0 0 rgba(255,45,85,.55); } 70% { box-shadow: 0 0 0 9px rgba(255,45,85,0); } 100% { box-shadow: 0 0 0 0 rgba(255,45,85,0); } }
+
+  /* ---- Plan view ---- */
+  .planhead { flex: 0 0 auto; display: flex; gap: 10px; padding: 10px 13px; border-bottom: 1px solid #182433; font-size: 12px; color: #8aa0b6; }
+  .planhead b { color: #eaf2fb; }
+  #planwrap { flex: 1 1 auto; min-height: 0; position: relative; }
+  #map { position: absolute; inset: 0; }
+  .leaflet-container { background: #0a0f15 !important; font: 11px "Segoe UI", sans-serif; }
+  .leaflet-tooltip.wptip { background: rgba(14,22,32,.92); border: 1px solid #2a3b4d; color: #cfe0f2; box-shadow: none; }
+  .planfoot { flex: 0 0 auto; padding: 8px 13px; border-top: 1px solid #182433; font-size: 11px; color: #6f8197; }
+
+  /* info button + flyout drawer */
+  .iconbtn { -webkit-app-region: no-drag; width: 24px; height: 24px; border: 0; border-radius: 6px; background: #18222e; color: #b7c6d6; font-size: 14px; cursor: pointer; }
+  .iconbtn:hover { background: #21303f; }
+  .drawer { flex: 0 0 340px; width: 340px; display: none; flex-direction: column; background: #0e1620; border-left: 1px solid #213447; }
+  .drawer.open { display: flex; }
+  .drawerhead { display: flex; align-items: center; justify-content: space-between; padding: 11px 14px; border-bottom: 1px solid #1c2838; font-weight: 800; letter-spacing: 1px; font-size: 11px; color: var(--accent); }
+  .drawerbody { flex: 1 1 auto; overflow-y: auto; padding: 12px 14px; }
+  .drawerbody .sect { margin-bottom: 16px; }
+  .drawerbody h3 { margin: 0 0 7px; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: #7e93a8; }
+  .kv { display: flex; gap: 8px; font-size: 13px; margin-bottom: 4px; }
+  .kv span { flex: 0 0 96px; color: #7e93a8; }
+  .kv b { flex: 1 1 auto; color: #eaf2fb; }
+  .metar { font-size: 11px; color: #bfe0d6; background: #0a1118; border: 1px solid #1d2a38; border-radius: 7px; padding: 7px 9px; word-break: break-word; }
+  .route2 { font-size: 11px; color: #9fb4ca; margin-top: 4px; word-break: break-word; }
+
+  /* ---- Setup view ---- */
+  .setup { flex: 1 1 auto; overflow-y: auto; padding: 14px; }
+  .sect { margin-bottom: 18px; }
+  .sect h3 { margin: 0 0 9px; font-size: 11px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: var(--accent); }
+  .row { margin-bottom: 10px; }
+  .row label { display: block; font-size: 11px; color: #8aa0b6; margin-bottom: 4px; font-weight: 600; }
+  .row input[type=text], .row input[type=password], .row select {
+    width: 100%; padding: 9px 11px; border-radius: 8px; border: 1px solid #243747; background: #0f1925; color: #fff; font: inherit; outline: none;
+  }
+  .row input:focus, .row select:focus { border-color: var(--accent); }
+  .inline { display: flex; align-items: center; gap: 10px; }
+  .inline input[type=range] { flex: 1; accent-color: var(--accent); }
+  .inline input[type=color] { width: 40px; height: 30px; border: 1px solid #243747; border-radius: 6px; background: #0f1925; }
+  .toggle { display: flex; align-items: center; gap: 8px; }
+  .btn { border: 0; border-radius: 8px; padding: 9px 14px; font-weight: 700; cursor: pointer; background: linear-gradient(135deg, var(--g1), var(--g2)); color: #fff; }
+  .note { font-size: 11px; color: #6f8197; margin-top: 6px; }
+  .piperlist { display: flex; flex-direction: column; gap: 6px; margin: 4px 0; }
+  .pcont > summary { cursor: pointer; list-style: none; font-size: 12px; font-weight: 700; color: #9fd0ff; background: #122031; border: 1px solid #1d2c3c; border-radius: 7px; padding: 7px 10px; display: flex; justify-content: space-between; align-items: center; }
+  .pcont > summary::-webkit-details-marker { display: none; }
+  .pcont > summary .cnt { font-size: 11px; font-weight: 600; color: #7d93a8; }
+  .pcont[open] > summary { border-color: var(--accent); }
+  .pcont .pbody { display: flex; flex-direction: column; gap: 5px; padding: 6px 0 2px; }
+  .pv { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: #cfe0f2; background: #0f1925; border: 1px solid #1d2c3c; border-radius: 7px; padding: 6px 9px; }
+  .pv .pvsz { font-size: 10px; color: #6f8197; margin-left: 6px; }
+  .pv .pvbtn { border: 0; border-radius: 6px; padding: 4px 10px; font-size: 11px; font-weight: 700; cursor: pointer; background: linear-gradient(135deg, var(--g1), var(--g2)); color: #fff; }
+  .pv .pvbtn[disabled] { opacity: .5; cursor: default; background: #24405c; }
+  .pv .pvok { color: #43d17a; font-size: 11px; font-weight: 700; }
+  .piperlog { max-height: 96px; overflow: auto; background: #0c141d; border: 1px solid #182433; border-radius: 7px; padding: 7px 9px; font-size: 10.5px; line-height: 1.45; color: #8aa0b6; white-space: pre-wrap; margin: 6px 0 0; }
+</style>
+</head>
+<body>
+  <div class="shell">
+    <div class="mainpanel">
+    <div class="accentbar"></div>
+    <div class="bar">
+      <span class="brand">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M11 3h2v6l5 11h-4l-1-3h-2l-1 3H5l5-11z" fill="#dfeaf5"/><path d="M6 4q-3 3 0 8M18 4q3 3 0 8" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/></svg>
+        <code class="bn">Air&nbsp;Traffic&nbsp;Control</code>
+      </span>
+      <span class="grow"></span>
+      <span class="stat" id="stat"><span class="led"></span><span id="statTxt">offline</span></span>
+      <button class="iconbtn" id="infoBtn" title="Flight info">&#9432;</button>
+      <span class="winctl" id="winctl">
+        <button class="wc" id="wcPin" title="Pin on top">&#9737;</button>
+        <button class="wc" id="wcMin" title="Minimize">&#8211;</button>
+        <button class="wc" id="wcClose" title="Close">&#215;</button>
+      </span>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-v="comms">COMMS</button>
+      <button class="tab" data-v="plan">PLAN</button>
+      <button class="tab" data-v="setup">SETUP</button>
+    </div>
+
+    <div class="views">
+      <!-- COMMS -->
+      <div class="view active" id="v-comms">
+        <div class="radio">
+          <span class="cs" id="cs">&mdash;</span>
+          <span class="rt mono" id="rt"></span>
+          <span class="stn" id="stn"></span>
+          <span class="freq mono" id="freq"></span>
+        </div>
+        <div id="log"><div class="entry sys" id="empty">Connect and call ATC, or use a quick action below.</div></div>
+        <div id="cpdlcRow" style="display:none;padding:4px 12px 0;">
+          <button class="btn" id="cpdlcPdc" style="font-size:11px;padding:6px 11px;background:#143425;color:#9fe9bf;">Request PDC (datalink)</button>
+          <span class="note" style="margin-left:8px;">CPDLC connected</span>
+        </div>
+        <div class="quick" id="quick"></div>
+        <div class="composer">
+          <button id="mic" title="Push to talk (hold, or click to toggle)">&#127908;</button>
+          <input id="input" placeholder="Type your call to ATC..." autocomplete="off" />
+          <button id="send" disabled>Send</button>
+        </div>
+      </div>
+
+      <!-- PLAN -->
+      <div class="view" id="v-plan">
+        <div class="planhead"><span id="planRoute">No flight plan</span></div>
+        <div id="planwrap"><div id="map"></div></div>
+        <div class="planfoot mono" id="planFoot"></div>
+      </div>
+
+      <!-- SETUP -->
+      <div class="view" id="v-setup">
+        <div class="setup">
+          <div class="sect">
+            <h3>Connection</h3>
+            <div class="row"><label>SimBrief username</label><input type="text" id="cfgSimbrief" placeholder="your SimBrief username" /></div>
+            <div class="row"><label>SimBrief Pilot ID <span class="hint" style="color:#7e93a8;font-weight:400;">(used first if set)</span></label><input type="text" id="cfgSimbriefId" placeholder="numeric SimBrief ID" /></div>
+            <div class="row"><label>Hoppie ACARS logon code</label><input type="password" id="cfgHoppie" placeholder="optional" /></div>
+          </div>
+          <div class="sect">
+            <h3>AI model</h3>
+            <div class="row"><label>Provider</label><select id="cfgProvider"><option value="ollama">Ollama (local)</option><option value="openai-compatible">OpenAI-compatible (LM Studio, llama.cpp...)</option></select></div>
+            <div class="row"><label>Model</label><input type="text" id="cfgModel" placeholder="qwen2.5:14b" /></div>
+            <div class="row"><label>Run on</label><select id="cfgDevice"><option value="auto">Auto (let it decide)</option><option value="gpu">GPU</option><option value="cpu">CPU</option></select></div>
+            <div class="note" style="color:#e0a14a;">&#9888; Leave the model as <b>qwen2.5:14b</b> unless you know what you're doing &mdash; other models may break ATC phrasing or be too slow.</div>
+            <button class="btn" id="saveConn">Save connection &amp; AI</button>
+            <div class="note">Saved to the brain's .env. Restart the brain to apply.</div>
+          </div>
+          <div class="sect">
+            <h3>Realism</h3>
+            <div class="row"><label>Readback strictness</label><select id="cfgStrict"><option value="relaxed">Relaxed (anything accepted)</option><option value="normal">Normal (key items)</option><option value="strict">Strict (full readback)</option></select></div>
+            <div class="row"><label>Ambient radio chatter</label><select id="cfgChatter"><option value="off">Off</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High (busy)</option></select></div>
+            <button class="btn" id="saveRealism">Save realism</button>
+            <div class="note">Saved to the brain's .env. Restart the brain to apply.</div>
+          </div>
+          <div class="sect">
+            <h3>Setup &amp; tools</h3>
+            <button class="btn" id="openWiz" style="background:#18283a;color:#cfe0f2;">Re-run install wizard</button>
+            <button class="btn" id="exportLog" style="background:#18283a;color:#cfe0f2;margin-left:8px;">Export transcript</button>
+          </div>
+          <div class="sect" id="logbookSect" style="display:none;">
+            <h3>Logbook</h3>
+            <div id="scoreNow" class="note" style="margin-bottom:6px;">No active flight yet.</div>
+            <button class="btn" id="logSave">Save this flight</button>
+            <button class="btn" id="logClear" style="background:#3a1820;color:#ffd0d6;margin-left:8px;">Clear logbook</button>
+            <div id="logList" class="piperlist" style="margin-top:8px;"></div>
+          </div>
+          <div class="sect">
+            <h3>Voice</h3>
+            <div class="row toggle"><input type="checkbox" id="setVoice" /><label style="margin:0;">Speak ATC out loud (radio voice)</label></div>
+            <div class="row inline"><label style="margin:0;min-width:84px;">Speed</label><input type="range" id="setVoiceRate" min="0.7" max="1.6" step="0.05" /></div>
+            <div class="row inline"><label style="margin:0;min-width:84px;">Volume</label><input type="range" id="setVoiceVol" min="0" max="1" step="0.05" /></div>
+            <div class="row toggle" id="piperRow" style="display:none;"><input type="checkbox" id="setPiper" /><label style="margin:0;">Use Piper HD neural voices (download below)</label></div>
+            <div id="piperPanel" style="display:none;">
+              <button class="btn" id="piperInstall" style="background:#18283a;color:#cfe0f2;">Install Piper engine</button>
+              <div id="piperBulk" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+                <button class="btn" id="piperAll" style="background:linear-gradient(135deg,var(--g1),var(--g2));">Download ALL voices</button>
+                <button class="btn" id="piperDelAll" style="background:#3a1820;color:#ffd0d6;">Delete all voices</button>
+              </div>
+              <div class="note" id="piperSummary" style="margin:7px 0 4px;">Voices grouped by continent. Each ~25–65 MB, downloaded on demand, cached.</div>
+              <div id="piperVoices" class="piperlist"></div>
+              <pre id="piperLog" class="piperlog"></pre>
+            </div>
+            <div class="note">System voice works offline out of the box. Piper adds distinct HD voices cast per controller (Electron only).</div>
+          </div>
+          <div class="sect">
+            <h3>Appearance</h3>
+            <div class="row inline"><label style="margin:0;min-width:84px;">Accent</label><input type="color" id="setAccent" value="#6f8cff" /></div>
+            <div class="row inline"><label style="margin:0;min-width:84px;">Opacity</label><input type="range" id="setOpacity" min="0.4" max="1" step="0.05" /></div>
+            <div class="row inline"><label style="margin:0;min-width:84px;">Text size</label><input type="range" id="setFont" min="0.85" max="1.3" step="0.05" /></div>
+            <div class="row toggle"><input type="checkbox" id="setPin" /><label style="margin:0;">Always on top</label></div>
+            <button class="btn" id="saveAppe">Save appearance</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    </div>
+    <div class="drawer" id="drawer">
+      <div class="drawerhead"><span>FLIGHT INFO</span><button class="iconbtn" id="drawerClose">&#215;</button></div>
+      <div class="drawerbody" id="drawerBody"></div>
+    </div>
+  </div>
+
+<script>
+var EL = (window.atcWin && window.atcWin.isElectron) ? window.atcWin : null;
+var WS_URL = (location.protocol.indexOf('http') === 0) ? ('ws://' + location.host) : 'ws://localhost:8742';
+function $(id) { return document.getElementById(id); }
+function esc(s){ return String(s).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
+function pad2(x){ return ('0'+x).slice(-2); }
+function nowHMS(){ var n=new Date(); return pad2(n.getHours())+':'+pad2(n.getMinutes())+':'+pad2(n.getSeconds()); }
+
+var ws=null, flight=null, plan=null, pos=null, fpinfo=null, cpdlcOn=false, lastScore=null;
+var map=null, routeLine=null, acMarker=null, wpLayer=null;
+var STATION={delivery:'Clearance Delivery',ground:'Ground',tower:'Tower',departure:'Departure',center:'Center',approach:'Approach'};
+var logEl=$('log');
+
+// ---- voice (offline system TTS, distinct voice per controller) ----
+var voiceCfg = { enabled:true, rate:1.05, vol:1, piper:false };
+var curKind = 'delivery';
+var sysVoices = [];
+function loadVoices(){ try{ sysVoices = window.speechSynthesis ? speechSynthesis.getVoices() : []; }catch(e){} }
+if(window.speechSynthesis){ loadVoices(); try{ speechSynthesis.onvoiceschanged = loadVoices; }catch(e){} }
+function hashStr(s){ var h=0,i; for(i=0;i<(s||'').length;i++){ h=(h*31+s.charCodeAt(i))|0; } return Math.abs(h); }
+function voiceFor(kind){ if(!sysVoices.length) return null; var en=sysVoices.filter(function(v){return /^en/i.test(v.lang);}); var pool=en.length?en:sysVoices; return pool[hashStr(kind)%pool.length]; }
+var actx=null;
+function ensureCtx(){ var AC=window.AudioContext||window.webkitAudioContext; if(!AC) return null; if(!actx) actx=new AC(); if(actx.state==='suspended') actx.resume(); return actx; }
+function squelch(){ try{ var c=ensureCtx(); if(!c) return;
+  var t=c.currentTime, o=c.createOscillator(), g=c.createGain(); o.type='square'; o.frequency.value=1100;
+  g.gain.setValueAtTime(0.0008,t); g.gain.exponentialRampToValueAtTime(0.05,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+0.09);
+  o.connect(g); g.connect(c.destination); o.start(t); o.stop(t+0.1);
+}catch(e){} }
+
+/* ---- Piper HD voices (Electron only) ---- */
+var PIPER = (typeof window!=='undefined' && window.atcVoice) ? window.atcVoice : null;
+var piperVoices = [];   // flat [{key,label,sizeMb,installed}] across all continents
+var piperBinary = false;
+function piperReady(){ return voiceCfg.piper && PIPER && piperBinary && piperVoices.some(function(v){return v.installed;}); }
+function installedPiper(){ return piperVoices.filter(function(v){return v.installed;}); }
+// Voice casting: give each controller a stable, distinct voice, spread across installed voices.
+var castMap = {};
+var CAST_ORDER = ['delivery','ground','tower','departure','center','approach'];
+function rebuildCast(){
+  castMap = {};
+  var pool = installedPiper();
+  if(!pool.length) return;
+  CAST_ORDER.forEach(function(kind, i){ castMap[kind] = pool[(hashStr('atc:'+kind)+i)%pool.length].key; });
+}
+function piperCast(kind){ if(!castMap[kind]) rebuildCast(); return castMap[kind] || (installedPiper()[0]||{}).key || null; }
+function refreshPiper(){
+  if(!PIPER) return Promise.resolve();
+  return PIPER.status().then(function(s){
+    piperBinary = !!(s && s.binary);
+    piperVoices = [];
+    ((s && s.continents) || []).forEach(function(c){ (c.voices||[]).forEach(function(v){ piperVoices.push(v); }); });
+    rebuildCast();
+    renderPiperVoices(s);
+  });
+}
+
+// Radio-band filter + squelch tail so Piper output sounds like a real transmission.
+function playWav(arrbuf){
+  var c=ensureCtx(); if(!c) return false;
+  return c.decodeAudioData(arrbuf.slice(0)).then(function(buf){
+    var src=c.createBufferSource(); src.buffer=buf;
+    var hp=c.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=300;
+    var lp=c.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=3200;
+    var g=c.createGain(); g.gain.value=(voiceCfg.vol!=null?voiceCfg.vol:1);
+    src.connect(hp); hp.connect(lp); lp.connect(g); g.connect(c.destination);
+    src.start();
+  }).catch(function(){ return false; });
+}
+
+function speakSystem(text, kind){
+  if(!window.speechSynthesis) return;
+  try{
+    var u=new SpeechSynthesisUtterance(text);
+    var v=voiceFor(kind||curKind); if(v) u.voice=v;
+    u.rate=voiceCfg.rate||1.05; u.pitch=0.9; u.volume=(voiceCfg.vol!=null?voiceCfg.vol:1);
+    squelch();
+    speechSynthesis.speak(u);
+  }catch(e){}
+}
+function speak(text, kind){
+  if(!voiceCfg.enabled || !text) return;
+  if(piperReady()){
+    var key=piperCast(kind||curKind);
+    if(key){
+      squelch();
+      PIPER.synth(text, key).then(function(r){
+        if(r && r.ok && r.wav){ playWav(r.wav); }
+        else { speakSystem(text, kind); } // fall back if synth failed
+      }).catch(function(){ speakSystem(text, kind); });
+      return;
+    }
+  }
+  speakSystem(text, kind);
+}
+
+/* ---- Piper setup UI ---- */
+function piperLog(line){ var el=$('piperLog'); if(!el) return; el.textContent += (line+'\n'); el.scrollTop=el.scrollHeight; }
+function voiceRow(v, binary){
+  var row=document.createElement('div'); row.className='pv';
+  var label=document.createElement('span'); label.innerHTML=esc(v.label)+'<span class="pvsz">'+(v.sizeMb?('~'+v.sizeMb+' MB'):'')+'</span>';
+  var right;
+  if(v.installed){ right=document.createElement('span'); right.className='pvok'; right.textContent='installed ✓'; }
+  else {
+    right=document.createElement('button'); right.className='pvbtn'; right.textContent='Download'; right.disabled=!binary;
+    right.addEventListener('click',function(){ right.disabled=true; right.textContent='Downloading…'; PIPER.installVoice(v.key).then(function(){ refreshPiper(); }); });
+  }
+  row.appendChild(label); row.appendChild(right); return row;
+}
+function renderPiperVoices(s){
+  var wrap=$('piperVoices'); if(!wrap) return;
+  var binary = s && s.binary;
+  var btn=$('piperInstall'); if(btn){ btn.textContent = binary ? 'Piper engine installed ✓' : 'Install Piper engine'; btn.disabled = !!binary; }
+  if(s && s.error){ wrap.innerHTML='<div class="note">Could not load the voice catalog: '+esc(s.error)+'</div>'; return; }
+  var sum=$('piperSummary'); if(sum && s){ sum.textContent = (s.installed||0)+' of '+(s.total||0)+' voices installed, across '+((s.continents||[]).length)+' continents. Each ~25–65 MB, cached on disk.'; }
+  var all=$('piperAll'); if(all){ all.disabled = !binary || (s && s.installed>=s.total); all.textContent = (s && s.installed>=s.total && s.total>0) ? 'All voices installed ✓' : 'Download ALL voices'+((s&&s.total)?(' ('+(s.total-s.installed)+' left)'):''); }
+  var del=$('piperDelAll'); if(del){ del.disabled = !(s && s.installed>0); }
+  wrap.innerHTML='';
+  ((s && s.continents)||[]).forEach(function(c){
+    var det=document.createElement('details'); det.className='pcont';
+    var sm=document.createElement('summary');
+    sm.innerHTML='<span>'+esc(c.name)+'</span><span class="cnt">'+c.installed+' / '+c.total+'</span>';
+    det.appendChild(sm);
+    var body=document.createElement('div'); body.className='pbody';
+    (c.voices||[]).forEach(function(v){ body.appendChild(voiceRow(v, binary)); });
+    det.appendChild(body); wrap.appendChild(det);
+  });
+}
+if(PIPER){
+  $('piperRow').style.display='flex'; $('piperPanel').style.display='block';
+  PIPER.onLog(piperLog);
+  $('piperInstall').addEventListener('click',function(){ var b=$('piperInstall'); b.disabled=true; b.textContent='Installing…'; PIPER.installBinary().then(function(){ refreshPiper(); }); });
+  $('piperAll').addEventListener('click',function(){ var b=$('piperAll'); b.disabled=true; b.textContent='Downloading all…'; PIPER.installAll().then(function(){ refreshPiper(); }); });
+  $('piperDelAll').addEventListener('click',function(){ if(!confirm('Delete all downloaded Piper voices? (the engine stays installed)')) return; var b=$('piperDelAll'); b.disabled=true; PIPER.deleteAll().then(function(){ refreshPiper(); }); });
+  $('setPiper').addEventListener('change',function(){ voiceCfg.piper=this.checked; saveVoiceCfg(); });
+  refreshPiper();
+}
+
+/* ---- tabs ---- */
+var tabs=document.querySelectorAll('.tab');
+for (var i=0;i<tabs.length;i++) (function(t){
+  t.addEventListener('click',function(){
+    for (var j=0;j<tabs.length;j++) tabs[j].classList.remove('active');
+    t.classList.add('active');
+    var v=t.getAttribute('data-v');
+    document.querySelectorAll('.view').forEach(function(el){ el.classList.remove('active'); });
+    $('v-'+v).classList.add('active');
+    if (v==='plan') showMap();
+  });
+})(tabs[i]);
+
+/* ---- comms ---- */
+function hideEmpty(){ var e=$('empty'); if(e) e.parentNode.removeChild(e); }
+function entry(kind, tag, freq, text){
+  hideEmpty();
+  var d=document.createElement('div'); d.className='entry '+kind;
+  if (kind==='sys'){ d.innerHTML=esc(text); }
+  else {
+    var meta='<span class="tag">'+esc(tag)+'</span>'+(freq?'<span class="ef mono">'+esc(freq)+'</span>':'')+'<span class="et mono">'+nowHMS()+'</span>';
+    d.innerHTML='<div class="emeta">'+meta+'</div><div class="ebody">'+esc(text)+'</div>';
+  }
+  logEl.appendChild(d); logEl.scrollTop=logEl.scrollHeight;
+}
+// ATC message revealed live ~250 wpm, smoothly (rAF, time-based). Click to reveal instantly.
+var CPS = 400 * 5 / 60; // chars/sec for ~400 wpm
+function typeEntry(tag, freq, text){
+  hideEmpty();
+  var d=document.createElement('div'); d.className='entry atc';
+  var meta='<span class="tag">'+esc(tag)+'</span>'+(freq?'<span class="ef mono">'+esc(freq)+'</span>':'')+'<span class="et mono">'+nowHMS()+'</span>';
+  var body=document.createElement('div'); body.className='ebody';
+  d.innerHTML='<div class="emeta">'+meta+'</div>'; d.appendChild(body);
+  logEl.appendChild(d); logEl.scrollTop=logEl.scrollHeight;
+  var start=null, done=false;
+  function finish(){ if(done)return; done=true; body.textContent=text; logEl.scrollTop=logEl.scrollHeight; }
+  d.addEventListener('click',finish);
+  function frame(ts){
+    if(done) return;
+    if(start===null) start=ts;
+    var n=Math.floor((ts-start)*CPS/1000);
+    if(n>=text.length){ finish(); return; }
+    body.textContent=text.slice(0,n);
+    logEl.scrollTop=logEl.scrollHeight;
+    requestAnimationFrame(frame);
+  }
+  if(text.length) requestAnimationFrame(frame); else body.textContent='';
+}
+
+function setStatus(s){
+  $('stat').className='stat'+(s==='on'?' on':'');
+  $('statTxt').textContent = s==='on'?'online':(s==='connecting'?'connecting':'offline');
+  $('send').disabled = s!=='on';
+}
+function setQuick(items){
+  var c=$('quick'); c.innerHTML='';
+  items.forEach(function(it){ var b=document.createElement('button'); b.className='q'; b.textContent=it.label; b.addEventListener('click',function(){ sendText(it.send); }); c.appendChild(b); });
+}
+function defaultQuick(){
+  var dest=(flight&&flight.destination)?flight.destination:'destination';
+  setQuick([
+    {label:'Request clearance',send:'Delivery, request IFR clearance to '+dest+', information Alpha.'},
+    {label:'Pushback',send:'Ground, request pushback.'},
+    {label:'Taxi',send:'Ground, request taxi.'},
+    {label:'Ready for departure',send:'Tower, holding short, ready for departure.'}
+  ]);
+}
+function sendText(text){
+  var t=(typeof text==='string'?text:$('input').value).replace(/^\s+|\s+$/g,'');
+  if(!t||!ws||ws.readyState!==1) return;
+  entry('you','You','',t);
+  ws.send(JSON.stringify({type:'pilot_tx',text:t}));
+  $('input').value='';
+}
+$('send').addEventListener('click',function(){ sendText(); });
+$('input').addEventListener('keydown',function(e){ if(e.key==='Enter'||e.keyCode===13) sendText(); });
+if($('cpdlcPdc')) $('cpdlcPdc').addEventListener('click',function(){ if(ws&&ws.readyState===1){ ws.send(JSON.stringify({type:'cpdlc_pdc'})); entry('sys','','','Requesting PDC over datalink…'); } });
+
+/* ---- speech-to-text (push-to-talk) ---- */
+var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+var rec=null, listening=false, heard='';
+var micBtn=$('mic');
+function setMic(on){ listening=on; micBtn.classList.toggle('listening', on); micBtn.title = on ? 'Listening… (click to stop)' : 'Push to talk (click, or hold Space)'; }
+function startListen(){
+  if(!SR || listening) return;
+  heard='';
+  try{
+    rec=new SR(); rec.lang='en-US'; rec.interimResults=true; rec.continuous=false; rec.maxAlternatives=1;
+    if(window.speechSynthesis) try{ speechSynthesis.cancel(); }catch(e){} // don't transcribe the controller
+    rec.onresult=function(e){
+      var fin='', intr='';
+      for(var i=e.resultIndex;i<e.results.length;i++){ var r=e.results[i]; if(r.isFinal) fin+=r[0].transcript; else intr+=r[0].transcript; }
+      if(intr) $('input').value=intr;
+      if(fin){ heard=fin.replace(/^\s+|\s+$/g,''); $('input').value=heard; }
+    };
+    rec.onerror=function(ev){ if(ev && ev.error==='not-allowed') entry('sys','','', 'mic blocked — allow microphone access'); };
+    rec.onend=function(){ setMic(false); rec=null; if(heard){ sendText(heard); heard=''; } };
+    rec.start(); setMic(true);
+  }catch(e){ setMic(false); }
+}
+function stopListen(){ if(rec){ try{ rec.stop(); }catch(e){} } }
+if(!SR){ micBtn.classList.add('unsupported'); micBtn.title='Voice input not supported in this build'; }
+else {
+  micBtn.addEventListener('click',function(){ if(listening) stopListen(); else startListen(); }); // click = toggle
+  // Space = hold-to-talk (when not typing in the input box)
+  document.addEventListener('keydown',function(e){ if(e.code==='Space' && document.activeElement!==$('input')){ e.preventDefault(); if(!listening) startListen(); } });
+  document.addEventListener('keyup',function(e){ if(e.code==='Space' && document.activeElement!==$('input') && listening){ e.preventDefault(); stopListen(); } });
+}
+
+/* ---- websocket ---- */
+function connect(){
+  setStatus('connecting');
+  ws=new WebSocket(WS_URL);
+  ws.onopen=function(){ setStatus('on'); };
+  ws.onclose=function(){ setStatus('off'); setTimeout(connect,1500); };
+  ws.onerror=function(){};
+  ws.onmessage=function(ev){
+    var m; try{ m=JSON.parse(ev.data); }catch(e){ return; }
+    if(m.type==='hello'){ flight=m; $('cs').textContent=m.callsign; $('rt').textContent=m.origin+' ▸ '+m.destination; defaultQuick(); }
+    else if(m.type==='flightplan'){ plan=m; $('planRoute').innerHTML='<b>'+esc(m.origin)+'</b> &#9656; <b>'+esc(m.destination)+'</b>  &middot; '+(m.aircraft||'')+'  &middot; cruise '+(m.cruise||'?')+' ft'; drawRoute(); }
+    else if(m.type==='fpinfo'){ fpinfo=m; if($('drawer').classList.contains('open')) renderDrawer(); }
+    else if(m.type==='atc_tx'){ var f=m.freq?Number(m.freq).toFixed(3):''; typeEntry(m.from,f,m.text); speak(m.text, curKind); if(m.freq) $('freq').textContent=Number(m.freq).toFixed(3); }
+    else if(m.type==='state'){ $('stn').textContent=STATION[m.activeController]||''; curKind=m.activeController||curKind; }
+    else if(m.type==='radio'){ var rf=Number(m.com1).toFixed(3); $('freq').textContent=rf; entry('sys','','', (m.active?'COM1 tuned to ':'COM1 standby set to ')+rf); }
+    else if(m.type==='position'){ pos=m; updatePlanFoot(); updateAircraft(); }
+    else if(m.type==='scorecard'){ lastScore=m; renderScore(); }
+    else if(m.type==='chatter'){ entry('chatter', m.from, '', m.text); }
+    else if(m.type==='cpdlc_status'){ cpdlcOn=!!m.enabled; if($('cpdlcRow')) $('cpdlcRow').style.display = cpdlcOn?'block':'none'; }
+    else if(m.type==='cpdlc_in'){ entry('cpdlc', 'CPDLC ◂ '+m.from, '', m.text); }
+    else if(m.type==='cpdlc_sent'){ entry('sys','','', m.ok? ('CPDLC sent to '+m.to) : ('CPDLC failed: '+(m.error||m.to))); }
+    else if(m.type==='error'){ entry('sys','','', 'error: '+m.error); }
+  };
+}
+
+/* ---- flight plan map ---- */
+function updatePlanFoot(){
+  if(!pos){ $('planFoot').textContent=''; return; }
+  $('planFoot').textContent='POS '+pos.lat.toFixed(3)+', '+pos.lon.toFixed(3)+'   HDG '+Math.round(pos.hdg)+'   '+Math.round(pos.altFt)+' ft   '+Math.round(pos.gsKt)+' kt';
+}
+function drawPlan(){
+  var cv=$('plan'); if(!cv||!$('v-plan').classList.contains('active')) return;
+  var wrap=$('planwrap'); var dpr=window.devicePixelRatio||1;
+  var W=wrap.clientWidth, H=wrap.clientHeight; if(W<10||H<10) return;
+  cv.width=W*dpr; cv.height=H*dpr; var ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,W,H);
+  function msg(t){ ctx.fillStyle='#46586c'; ctx.font='13px "Segoe UI",sans-serif'; ctx.textAlign='center'; ctx.fillText(t, W/2, H/2); }
+  var pts=[];
+  if(plan){ if(plan.originPos) pts.push({ident:plan.origin,lat:plan.originPos.lat,lon:plan.originPos.lon,role:'orig'});
+    (plan.waypoints||[]).forEach(function(w){ pts.push({ident:w.ident,lat:w.lat,lon:w.lon}); });
+    if(plan.destPos) pts.push({ident:plan.destination,lat:plan.destPos.lat,lon:plan.destPos.lon,role:'dest'}); }
+  // Fit to the ROUTE only, so an off-route aircraft can't squish the map.
+  var bb = pts.length>=2 ? pts : (pos ? [{lat:pos.lat-0.15,lon:pos.lon-0.15},{lat:pos.lat+0.15,lon:pos.lon+0.15}] : null);
+  if(!bb){ msg('No flight plan'); return; }
+  var minLat=1e9,maxLat=-1e9,minLon=1e9,maxLon=-1e9;
+  bb.forEach(function(p){ minLat=Math.min(minLat,p.lat);maxLat=Math.max(maxLat,p.lat);minLon=Math.min(minLon,p.lon);maxLon=Math.max(maxLon,p.lon); });
+  var pad=42, meanLat=(minLat+maxLat)/2, cos=Math.cos(meanLat*Math.PI/180)||1;
+  var lonSpan=Math.max((maxLon-minLon)*cos,0.0001), latSpan=Math.max(maxLat-minLat,0.0001);
+  var scale=Math.min((W-2*pad)/lonSpan,(H-2*pad)/latSpan);
+  var ox=(W-lonSpan*scale)/2, oy=(H-latSpan*scale)/2;
+  function P(lat,lon){ return [ox+(lon-minLon)*cos*scale, oy+(maxLat-lat)*scale]; }
+  var g1=getCss('--g1')||'#2fb6ff', g2=getCss('--g2')||'#9b5cff';
+  if(pts.length>=2){
+    var pA=P(pts[0].lat,pts[0].lon), pB=P(pts[pts.length-1].lat,pts[pts.length-1].lon);
+    var grad=ctx.createLinearGradient(pA[0],pA[1],pB[0],pB[1]); grad.addColorStop(0,g1); grad.addColorStop(1,g2);
+    ctx.strokeStyle=grad; ctx.lineWidth=2.5; ctx.beginPath();
+    pts.forEach(function(p,i){ var xy=P(p.lat,p.lon); if(i===0)ctx.moveTo(xy[0],xy[1]); else ctx.lineTo(xy[0],xy[1]); }); ctx.stroke();
+    pts.forEach(function(p){
+      var xy=P(p.lat,p.lon);
+      var col = p.role==='orig' ? '#5fe08a' : (p.role==='dest' ? '#ff8a6b' : '#86d8c6');
+      ctx.fillStyle=col; ctx.beginPath(); ctx.arc(xy[0],xy[1], p.role?5:3, 0, 7); ctx.fill();
+      ctx.fillStyle = p.role ? '#eaf2fb' : '#8aa3b8'; ctx.font=(p.role?'700 11px':'10px')+' "Segoe UI",sans-serif'; ctx.textAlign='center';
+      ctx.fillText(p.ident, xy[0], xy[1]-9);
+    });
+  } else { msg('No flight plan'); }
+  // aircraft — clamped to the viewport with an "off route" hint if it's elsewhere
+  if(pos){
+    var a=P(pos.lat,pos.lon);
+    var off = a[0]<6||a[0]>W-6||a[1]<6||a[1]>H-6;
+    a[0]=Math.max(11,Math.min(W-11,a[0])); a[1]=Math.max(11,Math.min(H-11,a[1]));
+    ctx.save(); ctx.translate(a[0],a[1]); ctx.rotate((pos.hdg||0)*Math.PI/180);
+    ctx.fillStyle = off ? '#9a8a3a' : '#ffd24a';
+    ctx.beginPath(); ctx.moveTo(0,-10); ctx.lineTo(7,8); ctx.lineTo(0,4); ctx.lineTo(-7,8); ctx.closePath(); ctx.fill(); ctx.restore();
+    if(off){ ctx.fillStyle='#9a8a3a'; ctx.font='9px "Segoe UI",sans-serif'; ctx.textAlign='center'; ctx.fillText('off route', a[0], a[1] + (a[1]>H/2 ? -14 : 18)); }
+  }
+}
+function getCss(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+function showMap(){ if(typeof L==='undefined') return; if(!map) initMap(); else { map.invalidateSize(); drawRoute(); updateAircraft(); } }
+function initMap(){
+  map=L.map('map',{zoomControl:false,attributionControl:false}).setView([20,0],2);
+  // SimBrief-style light terrain: tan/yellow land, blue water (Esri World Topo).
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:19}).addTo(map);
+  L.control.zoom({position:'bottomright'}).addTo(map);
+  setTimeout(function(){ if(!map)return; map.invalidateSize(); drawRoute(); updateAircraft(); }, 60);
+}
+function drawRoute(){
+  if(!map||!plan) return;
+  if(wpLayer){ wpLayer.remove(); } wpLayer=L.layerGroup().addTo(map);
+  var pts=[]; if(plan.originPos)pts.push([plan.originPos.lat,plan.originPos.lon]);
+  (plan.waypoints||[]).forEach(function(w){ pts.push([w.lat,w.lon]); });
+  if(plan.destPos)pts.push([plan.destPos.lat,plan.destPos.lon]);
+  if(routeLine){ routeLine.remove(); routeLine=null; }
+  if(pts.length>=2){
+    routeLine=L.polyline(pts,{color:getCss('--g2')||'#9b5cff',weight:3,opacity:.9}).addTo(map);
+    (plan.waypoints||[]).forEach(function(w){ L.circleMarker([w.lat,w.lon],{radius:3,color:'#86d8c6',weight:1,fillOpacity:1}).bindTooltip(w.ident,{className:'wptip'}).addTo(wpLayer); });
+    if(plan.originPos)L.circleMarker([plan.originPos.lat,plan.originPos.lon],{radius:5,color:'#5fe08a',weight:2,fillOpacity:1}).bindTooltip(plan.origin,{permanent:true,direction:'top',className:'wptip'}).addTo(wpLayer);
+    if(plan.destPos)L.circleMarker([plan.destPos.lat,plan.destPos.lon],{radius:5,color:'#ff8a6b',weight:2,fillOpacity:1}).bindTooltip(plan.destination,{permanent:true,direction:'top',className:'wptip'}).addTo(wpLayer);
+    try{ map.fitBounds(routeLine.getBounds().pad(0.35)); }catch(e){}
+  }
+}
+function updateAircraft(){
+  if(!map||!pos) return;
+  var html='<div style="transform:rotate('+(pos.hdg||0)+'deg);color:#ffd24a;font-size:22px;line-height:1;">&#9650;</div>';
+  var icon=L.divIcon({html:html,className:'acicon',iconSize:[22,22],iconAnchor:[11,11]});
+  if(!acMarker){ acMarker=L.marker([pos.lat,pos.lon],{icon:icon}).addTo(map); }
+  else { acMarker.setLatLng([pos.lat,pos.lon]); acMarker.setIcon(icon); }
+}
+window.addEventListener('resize', function(){ if(map) map.invalidateSize(); });
+
+/* ---- window controls (Electron) ---- */
+if(EL){
+  $('winctl').style.display='flex';
+  $('wcMin').addEventListener('click',function(){ EL.minimize(); });
+  $('wcClose').addEventListener('click',function(){ EL.close(); });
+  $('wcPin').addEventListener('click',function(){ EL.togglePin(); });
+}
+
+/* ---- settings / config ---- */
+function applyAppearance(s){
+  document.documentElement.style.setProperty('--accent', s.accent||'#6f8cff');
+  document.documentElement.style.setProperty('--fs', (14*(s.fontScale||1))+'px');
+}
+function loadSetup(){
+  // appearance
+  var s = { accent:'#6f8cff', opacity:1, fontScale:1, alwaysOnTop:true, voiceEnabled:true, voiceRate:1.05, voiceVol:1, voicePiper:false };
+  function fill(){
+    $('setAccent').value=s.accent; $('setOpacity').value=s.opacity; $('setFont').value=s.fontScale; $('setPin').checked=!!s.alwaysOnTop;
+    $('setVoice').checked = s.voiceEnabled!==false; $('setVoiceRate').value = s.voiceRate||1.05; $('setVoiceVol').value = (s.voiceVol!=null?s.voiceVol:1);
+    if($('setPiper')) $('setPiper').checked = !!s.voicePiper;
+    voiceCfg = { enabled: s.voiceEnabled!==false, rate: parseFloat(s.voiceRate)||1.05, vol: (s.voiceVol!=null?parseFloat(s.voiceVol):1), piper: !!s.voicePiper };
+    applyAppearance(s);
+  }
+  if(EL){ EL.getSettings().then(function(v){ s=v; fill(); }); } else { try{ s=JSON.parse(localStorage.getItem('atc.appe')||'{}'); s=Object.assign({accent:'#6f8cff',opacity:1,fontScale:1,alwaysOnTop:true},s);}catch(e){} fill(); }
+  // config
+  if(EL){ EL.getConfig().then(function(c){ $('cfgSimbrief').value=c.SIMBRIEF_USERNAME||''; $('cfgSimbriefId').value=c.SIMBRIEF_USERID||''; $('cfgHoppie').value=c.HOPPIE_LOGON||''; $('cfgProvider').value=c.LLM_PROVIDER||'ollama'; $('cfgModel').value=c.LLM_MODEL||c.OLLAMA_MODEL||''; $('cfgDevice').value=c.LLM_DEVICE||'auto'; $('cfgStrict').value=c.ATC_STRICTNESS||'normal'; $('cfgChatter').value=c.ATC_CHATTER||'low'; }); }
+  renderScore(); renderLogbook();
+}
+$('saveAppe').addEventListener('click',function(){
+  var s={ accent:$('setAccent').value, opacity:parseFloat($('setOpacity').value), fontScale:parseFloat($('setFont').value), alwaysOnTop:$('setPin').checked,
+    voiceEnabled:$('setVoice').checked, voiceRate:parseFloat($('setVoiceRate').value), voiceVol:parseFloat($('setVoiceVol').value),
+    voicePiper: $('setPiper') ? $('setPiper').checked : false };
+  applyAppearance(s);
+  voiceCfg = { enabled:s.voiceEnabled, rate:s.voiceRate, vol:s.voiceVol, piper:s.voicePiper };
+  if(EL) EL.saveSettings(s); else localStorage.setItem('atc.appe', JSON.stringify(s));
+});
+// Persist just the Piper toggle immediately (without requiring "Save appearance").
+function saveVoiceCfg(){
+  if(EL){ EL.getSettings().then(function(v){ v.voicePiper = voiceCfg.piper; EL.saveSettings(v); }); }
+}
+$('saveConn').addEventListener('click',function(){
+  var provider=$('cfgProvider').value;
+  var cfg={ SIMBRIEF_USERNAME:$('cfgSimbrief').value.trim(), SIMBRIEF_USERID:$('cfgSimbriefId').value.trim(), HOPPIE_LOGON:$('cfgHoppie').value.trim(), LLM_PROVIDER:provider, LLM_DEVICE:$('cfgDevice').value };
+  if(provider==='ollama') cfg.OLLAMA_MODEL=$('cfgModel').value.trim(); else cfg.LLM_MODEL=$('cfgModel').value.trim();
+  if(EL){ EL.saveConfig(cfg).then(function(){ entry('sys','','','Saved. Restart the brain to apply.'); var t=document.querySelector('.tab[data-v="comms"]'); if(t)t.click(); }); }
+  else entry('sys','','','Config editing requires the desktop app.');
+});
+$('saveRealism').addEventListener('click',function(){
+  var cfg={ ATC_STRICTNESS:$('cfgStrict').value, ATC_CHATTER:$('cfgChatter').value };
+  if(EL){ EL.saveConfig(cfg).then(function(){ entry('sys','','','Realism saved. Restart the brain to apply.'); var t=document.querySelector('.tab[data-v="comms"]'); if(t)t.click(); }); }
+  else entry('sys','','','Config editing requires the desktop app.');
+});
+// live preview while sliding
+$('setAccent').addEventListener('input',function(){ document.documentElement.style.setProperty('--accent',$('setAccent').value); });
+$('setFont').addEventListener('input',function(){ document.documentElement.style.setProperty('--fs',(14*parseFloat($('setFont').value))+'px'); });
+
+/* ---- flight info flyout ---- */
+function nm(a,b){ // great-circle distance (nm) between [lat,lon]
+  var R=3440.065, t=Math.PI/180;
+  var dLat=(b[0]-a[0])*t, dLon=(b[1]-a[1])*t;
+  var s=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(a[0]*t)*Math.cos(b[0]*t)*Math.sin(dLon/2)*Math.sin(dLon/2);
+  return Math.round(2*R*Math.asin(Math.sqrt(s)));
+}
+function parseMetar(raw){
+  if(!raw) return null;
+  var o={};
+  var wind=raw.match(/\b(\d{3}|VRB)(\d{2,3})(G(\d{2,3}))?KT\b/);
+  if(wind) o.wind=(wind[1]==='VRB'?'VRB':wind[1]+'°')+' '+parseInt(wind[2],10)+(wind[4]?'G'+parseInt(wind[4],10):'')+' kt';
+  var vis=raw.match(/\b(\d{1,2}(?:\s\d\/\d)?|\d\/\d|M?\d?\/?\d)SM\b/); if(vis) o.vis=vis[1]+' SM';
+  var visM=raw.match(/\s(\d{4})\s/); if(!o.vis&&visM) o.vis=visM[1]+' m';
+  var td=raw.match(/\b(M?\d{2})\/(M?\d{2})\b/); if(td) o.temp=td[1].replace('M','-')+'°/'+td[2].replace('M','-')+'°';
+  var alt=raw.match(/\bA(\d{4})\b/); if(alt) o.alt=(parseInt(alt[1],10)/100).toFixed(2)+' inHg';
+  var qnh=raw.match(/\bQ(\d{4})\b/); if(!o.alt&&qnh) o.alt='Q'+qnh[1];
+  // flight category from ceiling + vis
+  var ceil=raw.match(/\b(BKN|OVC)(\d{3})\b/); var cft=ceil?parseInt(ceil[2],10)*100:99999;
+  var vsm=vis?(vis[1].indexOf('/')>=0?0.5:parseFloat(vis[1])):10;
+  var cat='VFR'; if(cft<500||vsm<1)cat='LIFR'; else if(cft<1000||vsm<3)cat='IFR'; else if(cft<=3000||vsm<=5)cat='MVFR';
+  o.cat=cat;
+  return o;
+}
+var CAT_COLOR={VFR:'#5fe08a',MVFR:'#5bb0ff',IFR:'#ff8a6b',LIFR:'#ff5d9e'};
+function wxBlock(icao, raw){
+  var p=parseMetar(raw);
+  var head='<div class="kv" style="margin-top:9px;"><span>'+esc(icao)+'</span>'+(p?'<b style="margin-left:auto;color:'+CAT_COLOR[p.cat]+'">'+p.cat+'</b>':'')+'</div>';
+  var sum = p ? '<div class="route2">'+[p.wind,p.vis,p.temp,p.alt].filter(Boolean).map(esc).join('  ·  ')+'</div>' : '';
+  return head+sum+'<div class="metar mono">'+esc(raw||'no data')+'</div>';
+}
+function renderDrawer(){
+  var fi=fpinfo||{}; var wx=fi.weather||{};
+  var o=(flight&&flight.origin)||'DEP', dn=(flight&&flight.destination)||'ARR';
+  var h='';
+  (fi.sections||[]).forEach(function(s){
+    if(!s||!s.rows||!s.rows.length) return;
+    h+='<div class="sect"><h3>'+esc(s.title)+'</h3>';
+    s.rows.forEach(function(r){ h+='<div class="kv"><span>'+esc(r[0])+'</span><b>'+esc(r[1])+'</b></div>'; });
+    h+='</div>';
+  });
+  if(fi.route) h+='<div class="sect"><h3>Route</h3><div class="route2">'+esc(fi.route)+'</div></div>';
+  h+='<div class="sect"><h3>Weather</h3>'+wxBlock(o, wx.origin)+wxBlock(dn, wx.dest)+'</div>';
+  $('drawerBody').innerHTML=h;
+}
+function openDrawer(open){
+  var d=$('drawer');
+  if(open){ renderDrawer(); d.classList.add('open'); if(EL&&EL.setDrawer) EL.setDrawer(true); }
+  else { d.classList.remove('open'); if(EL&&EL.setDrawer) EL.setDrawer(false); }
+}
+$('infoBtn').addEventListener('click',function(){ openDrawer(!$('drawer').classList.contains('open')); });
+$('drawerClose').addEventListener('click',function(){ openDrawer(false); });
+if(EL && EL.openWizard){ var ow=$('openWiz'); if(ow) ow.addEventListener('click', function(){ EL.openWizard(); }); }
+function exportLog(){
+  var lines=[];
+  logEl.querySelectorAll('.entry').forEach(function(e){
+    if(e.classList.contains('sys')){ lines.push(e.textContent); return; }
+    var tag=e.querySelector('.tag'), t=e.querySelector('.et'), body=e.querySelector('.ebody');
+    lines.push((t?'['+t.textContent+'] ':'')+(tag?tag.textContent+': ':'')+(body?body.textContent:''));
+  });
+  var header=(flight?flight.callsign+'   '+flight.origin+' -> '+flight.destination+'\n':'')+'Air Traffic Control transcript\n\n';
+  var blob=new Blob([header+lines.join('\n')+'\n'],{type:'text/plain'});
+  var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='atc-transcript.txt'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
+}
+var elx=$('exportLog'); if(elx) elx.addEventListener('click', exportLog);
+
+/* ---- logbook ---- */
+function transcriptText(){
+  var lines=[];
+  logEl.querySelectorAll('.entry').forEach(function(e){
+    if(e.classList.contains('sys')){ lines.push(e.textContent); return; }
+    var tag=e.querySelector('.tag'), body=e.querySelector('.ebody');
+    lines.push((tag?tag.textContent+': ':'')+(body?body.textContent:''));
+  });
+  return lines.join('\n');
+}
+function renderScore(){
+  if(!$('scoreNow')) return;
+  if(lastScore){ $('scoreNow').textContent = 'This flight: '+lastScore.readbackAccuracy+'% readback accuracy ('+lastScore.readbacksCorrect+'/'+lastScore.readbacksExpected+')'+(lastScore.declaredEmergency?' · emergency declared':''); }
+  else { $('scoreNow').textContent = 'No readbacks scored yet — call ATC and read back a clearance.'; }
+}
+function renderLogbook(){
+  if(!EL||!$('logList')) return;
+  EL.getLogbook().then(function(list){
+    var wrap=$('logList'); wrap.innerHTML='';
+    if(!list.length){ wrap.innerHTML='<div class="note">No saved flights yet.</div>'; return; }
+    list.forEach(function(e){
+      var row=document.createElement('div'); row.className='pv';
+      var d=e.savedAt?new Date(e.savedAt):null; var when=d?(d.getMonth()+1)+'/'+d.getDate():'';
+      row.innerHTML='<span>'+esc(e.callsign||'?')+' &middot; '+esc(e.origin||'')+'→'+esc(e.destination||'')+' <span class="pvsz">'+when+'</span></span>'+
+        '<span class="pvok">'+(e.readbackAccuracy!=null?e.readbackAccuracy+'%':'')+(e.declaredEmergency?' ⚠':'')+'</span>';
+      wrap.appendChild(row);
+    });
+  });
+}
+if(EL){
+  $('logbookSect').style.display='block';
+  $('logSave').addEventListener('click',function(){
+    var entry = Object.assign({ origin: flight&&flight.origin, destination: flight&&flight.destination, callsign: flight&&flight.callsign, transcript: transcriptText() }, lastScore||{});
+    EL.addLogbook(entry).then(function(){ renderLogbook(); entryMsg('Flight saved to logbook.'); });
+  });
+  $('logClear').addEventListener('click',function(){ if(!confirm('Clear the entire logbook?'))return; EL.clearLogbook().then(renderLogbook); });
+}
+function entryMsg(t){ entry('sys','','',t); }
+
+defaultQuick();
+loadSetup();
+connect();
+</script>
+</body>
+</html>

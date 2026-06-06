@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Air Traffic Control — Setup</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { font: 14px/1.5 "Segoe UI", system-ui, sans-serif; color: #dbe6f1; background: transparent; }
+  .shell { position: fixed; inset: 0; display: flex; flex-direction: column; background: #0c1118; border: 1px solid #1f2c3a; border-radius: 12px; overflow: hidden; }
+  .bar { height: 3px; background: linear-gradient(90deg, #2fb6ff, #9b5cff); }
+  .head { display: flex; align-items: center; gap: 10px; padding: 16px 18px 6px; -webkit-app-region: drag; }
+  .bn { font-family: "Cascadia Mono","Consolas",monospace; font-weight: 700; font-size: 13px; color: #eaf2fb; background: #0e1a26; padding: 3px 8px; border: 1px solid transparent; border-image: linear-gradient(135deg,#2fb6ff,#9b5cff) 1; }
+  .head .t { color: #7e93a8; font-weight: 700; letter-spacing: 1px; font-size: 12px; }
+  .grow { flex: 1; }
+  .x { -webkit-app-region: no-drag; width: 26px; height: 26px; border: 0; border-radius: 7px; background: #16273b; color: #cfe0f2; cursor: pointer; }
+  .x:hover { background: #b5364a; color: #fff; }
+  .intro { padding: 2px 18px 12px; color: #8aa0b6; font-size: 13px; }
+  .body { flex: 1 1 auto; overflow-y: auto; padding: 0 16px; }
+  .step { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid #1d2a3a; border-radius: 10px; margin-bottom: 10px; background: #0e1620; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: #3a4a5c; flex: 0 0 auto; }
+  .dot.ok { background: #36c2a0; } .dot.bad { background: #ff5d73; } .dot.warn { background: #e0a14a; }
+  .step .info { flex: 1 1 auto; min-width: 0; }
+  .step .title { font-weight: 700; color: #eaf2fb; }
+  .step .desc { font-size: 12px; color: #7e93a8; }
+  .step .desc.warn { color: #e0a14a; }
+  .btn { -webkit-app-region: no-drag; border: 0; border-radius: 8px; padding: 8px 13px; font-weight: 700; font-size: 13px; cursor: pointer; background: #18283a; color: #cfe0f2; flex: 0 0 auto; }
+  .btn:hover { background: #213650; }
+  .btn.primary { background: linear-gradient(135deg,#2fb6ff,#9b5cff); color: #fff; }
+  .btn[disabled] { opacity: .5; cursor: default; }
+  #log { margin: 4px 16px 10px; height: 130px; overflow-y: auto; background: #07101a; border: 1px solid #1a2738; border-radius: 8px; padding: 8px 10px; font: 11px/1.4 "Cascadia Mono","Consolas",monospace; color: #9fd6c4; white-space: pre-wrap; }
+  .foot { display: flex; gap: 10px; align-items: center; padding: 10px 16px 16px; border-top: 1px solid #18222e; }
+  .foot .note { flex: 1; font-size: 11px; color: #6f8197; }
+</style>
+</head>
+<body>
+  <div class="shell">
+    <div class="bar"></div>
+    <div class="head"><span class="bn">Air&nbsp;Traffic&nbsp;Control</span><span class="t">SETUP</span><span class="grow"></span><button class="x" id="x">&#215;</button></div>
+    <div class="intro">First-time setup. Let's get the pieces in place — this only happens once.</div>
+    <div class="body">
+      <div class="step"><span class="dot" id="d_deps"></span><div class="info"><div class="title">App dependencies</div><div class="desc" id="t_deps">Node packages for the engine.</div></div><button class="btn" id="b_deps">Install</button></div>
+      <div class="step"><span class="dot" id="d_env"></span><div class="info"><div class="title">Configuration</div><div class="desc" id="t_env">Creates your settings file (.env).</div></div><button class="btn" id="b_env">Create</button></div>
+      <div class="step"><span class="dot" id="d_ollama"></span><div class="info"><div class="title">Ollama (local AI runtime)</div><div class="desc" id="t_ollama">Runs the AI model on your PC.</div></div><button class="btn" id="b_ollama">Download</button></div>
+      <div class="step"><span class="dot" id="d_model"></span><div class="info"><div class="title">AI model</div><div class="desc warn" id="t_model">qwen2.5:14b — recommended. Don't change this unless you know what you're doing.</div></div><button class="btn" id="b_model">Pull</button></div>
+    </div>
+    <div id="log">Ready.</div>
+    <div class="foot">
+      <span class="note">The AI is optional — ATC works without it (just less flexible phrasing).</span>
+      <button class="btn" id="recheck">Recheck</button>
+      <button class="btn primary" id="finish" disabled>Finish &amp; Launch</button>
+    </div>
+  </div>
+<script>
+var S = window.atcSetup; var $ = function(id){ return document.getElementById(id); };
+var logEl = $('log');
+function log(line){ logEl.textContent += '\n' + line; logEl.scrollTop = logEl.scrollHeight; }
+if (S && S.onLog) S.onLog(log);
+
+function setDot(id, state){ $(id).className = 'dot ' + state; } // ok | bad | warn | ''
+function setBtn(id, disabled, label){ var b=$(id); b.disabled=!!disabled; if(label) b.textContent=label; }
+
+function refresh(){
+  if(!S){ log('Run inside the app to use the wizard.'); return; }
+  S.status().then(function(st){
+    setDot('d_deps', st.deps?'ok':'bad'); setBtn('b_deps', st.deps, st.deps?'Installed':'Install');
+    setDot('d_env', st.env?'ok':'bad'); setBtn('b_env', st.env, st.env?'Created':'Create');
+    setDot('d_ollama', st.ollama?'ok':'warn'); setBtn('b_ollama', false, st.ollama?'Installed':'Download');
+    setDot('d_model', st.model?'ok':'warn'); setBtn('b_model', false, st.model?('Have '+st.model_name):('Pull '+st.model_name));
+    $('finish').disabled = !(st.deps && st.env);
+  });
+}
+
+if(S){
+  $('b_deps').addEventListener('click', function(){ setBtn('b_deps',true,'Installing...'); log('Installing app dependencies (npm install)...'); S.installDeps().then(refresh); });
+  $('b_env').addEventListener('click', function(){ S.writeEnv().then(function(){ log('Configuration created.'); refresh(); }); });
+  $('b_ollama').addEventListener('click', function(){ S.openOllama(); log('Opened the Ollama download page in your browser. Install it, then click Recheck.'); });
+  $('b_model').addEventListener('click', function(){ setBtn('b_model',true,'Pulling...'); log('Pulling the AI model (this can take a while)...'); S.pullModel().then(refresh); });
+  $('recheck').addEventListener('click', refresh);
+  $('finish').addEventListener('click', function(){ log('Launching...'); S.finish(); });
+  $('x').addEventListener('click', function(){ if(window.atcWin) window.atcWin.close(); });
+}
+refresh();
+</script>
+</body>
+</html>

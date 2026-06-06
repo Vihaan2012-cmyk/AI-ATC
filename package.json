@@ -1,0 +1,36 @@
+{
+  "name": "msfs-ai-atc",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Text-based AI ATC for MSFS 2020/2024: deterministic ATC engine + Qwen (Ollama) language layer, driven by an in-sim toolbar widget.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "spike:ollama": "tsx spikes/ollama-spike.ts",
+    "spike:simconnect": "tsx spikes/simconnect-spike.ts",
+    "spike:facilities": "tsx spikes/facilities-spike.ts",
+    "spike:navdata": "tsx spikes/navdata-spike.ts",
+    "setup": "tsx src/setup/server.ts",
+    "brain": "tsx src/brain/index.ts",
+    "server": "tsx src/brain/serve.ts",
+    "demo": "tsx spikes/phase1-selftest.ts",
+    "sim-test": "tsx spikes/phase2-sim-test.ts",
+    "phase-test": "tsx spikes/phase-track-test.ts",
+    "cache-test": "tsx spikes/cache-offline-test.ts",
+    "comms-test": "tsx spikes/comms-test.ts",
+    "phase-monitor": "tsx spikes/phase-monitor.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "node-simconnect": "^3.3.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/ws": "^8.5.12",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
