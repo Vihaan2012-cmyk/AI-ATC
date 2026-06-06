@@ -1,11 +1,17 @@
-# Python deps for QLoRA fine-tuning (train_qlora.py).
-# Install into a venv:  python -m venv .venv && .venv\Scripts\activate && pip install -r training/requirements.txt
-# For GPU training, install a CUDA build of torch first from https://pytorch.org (e.g. cu121).
-torch>=2.2
-transformers>=4.44
-datasets>=2.20
-peft>=0.12
-trl>=0.9
-accelerate>=0.33
+# Python deps for QLoRA fine-tuning (train_qlora.py). Use Python 3.10–3.12 (NOT 3.13/3.14 yet).
+#
+# Install into a venv:
+#   py -3.12 -m venv .venv ; .venv\Scripts\activate
+#   pip install torch --index-url https://download.pytorch.org/whl/cu121   # GPU (RTX, etc.)
+#   pip install -r training/requirements.txt
+#
+# Versions are PINNED — transformers 5.x / latest peft/trl are mutually incompatible for QLoRA
+# (BloomPreTrainedModel import error). This quartet is known-good together.
+transformers==4.46.3
+peft==0.13.2
+trl==0.11.4
+accelerate==1.1.1
+datasets==3.1.0
 bitsandbytes>=0.43 ; platform_system != "Darwin"
 sentencepiece>=0.2
+numpy<2
