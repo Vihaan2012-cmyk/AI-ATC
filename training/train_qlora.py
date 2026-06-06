@@ -72,6 +72,14 @@ def do_merge(args):
 
 
 def main():
+    # Force UTF-8 stdout so progress prints never crash on Windows' cp1252 console.
+    try:
+        import sys
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
     args = parse_args()
     if args.merge:
         do_merge(args)
@@ -162,12 +170,12 @@ def main():
                 # snapshot only the trainable (LoRA) tensors — small, fits in RAM
                 self.best_state = copy.deepcopy({k: v.detach().cpu()
                                                  for k, v in model.named_parameters() if v.requires_grad})
-                print(f"   ↑ new best accuracy {acc*100:.1f}% (snapshot kept)")
+                print(f"   ++ new best accuracy {acc*100:.1f}% (snapshot kept)")
             else:
                 self.bad += 1
                 print(f"   = no improvement ({self.bad}/{self.patience}); best {self.best*100:.1f}%")
                 if self.bad >= self.patience:
-                    print("   ⤓ early stopping — restoring best checkpoint.")
+                    print("   >> early stopping - restoring best checkpoint.")
                     control.should_training_stop = True
             return control
 
