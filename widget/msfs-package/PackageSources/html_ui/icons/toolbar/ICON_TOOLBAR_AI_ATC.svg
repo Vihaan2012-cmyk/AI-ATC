@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
-  <!-- control tower -->
-  <path d="M40 30 h20 l-3 40 h-14 z" fill="#fff"/>
-  <path d="M35 24 h30 v8 h-30 z" fill="#fff"/>
-  <path d="M44 70 h12 v14 h-12 z" fill="#fff"/>
-  <!-- signal waves -->
-  <path d="M30 20 q-10 8 0 24" stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round"/>
-  <path d="M70 20 q10 8 0 24" stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round"/>
-</svg>
