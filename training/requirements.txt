@@ -1,0 +1,11 @@
+# Python deps for QLoRA fine-tuning (train_qlora.py).
+# Install into a venv:  python -m venv .venv && .venv\Scripts\activate && pip install -r training/requirements.txt
+# For GPU training, install a CUDA build of torch first from https://pytorch.org (e.g. cu121).
+torch>=2.2
+transformers>=4.44
+datasets>=2.20
+peft>=0.12
+trl>=0.9
+accelerate>=0.33
+bitsandbytes>=0.43 ; platform_system != "Darwin"
+sentencepiece>=0.2

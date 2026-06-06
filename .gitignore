@@ -32,3 +32,8 @@ app/el.err.txt
 
 # local Claude Code config
 .claude/
+
+# training artifacts (regenerable; can be large)
+training/data/
+training/out/
+.venv/
