@@ -29,3 +29,6 @@ Thumbs.db
 # stray electron stdout/stderr dumps
 app/el.out.txt
 app/el.err.txt
+
+# local Claude Code config
+.claude/

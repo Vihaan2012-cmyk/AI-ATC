@@ -4,12 +4,6 @@ Text-based AI air traffic control for Microsoft Flight Simulator 2020/2024, in t
 You type to ATC in an in-sim toolbar widget; a **local** AI (Qwen via Ollama, or any local model) replies with
 realistic ATC across a full gate-to-gate flight. Everything runs on your machine — no cloud.
 
-## Design in one line
-
-> A **deterministic ATC engine** owns the facts — frequencies, runways, sequencing, handoffs.
-> The **LLM is only the language layer** (pilot free-text → intent, decision → phraseology).
-> This keeps ATC correct and fast; routine calls never touch the LLM.
-
 ## What works
 
 - **Full controller chain**, gate to gate: Clearance Delivery → Ground → Tower → Departure → Center →
@@ -22,15 +16,12 @@ realistic ATC across a full gate-to-gate flight. Everything runs on your machine
 - **Setup GUI**, **CLI**, and a **WebSocket server** that the in-sim widget connects to.
 - Live **flight-phase tracker** from sim state.
 
-Still TODO (needs the MSFS SDK): packaging the widget as an actual toolbar panel + confirming panel
-networking — see [widget/README.md](widget/README.md).
-
 ## Prerequisites
 
 - **Windows** + **MSFS 2020/2024** (SimConnect is Windows-only)
 - **Node ≥ 22** (`node -v`)
 - **A local AI**: [Ollama](https://ollama.com) + `ollama pull qwen2.5:14b`, OR any OpenAI-compatible server
-- Optional: a **SimBrief** username; the **MSFS SDK** (only for building the toolbar panel)
+- Optional: a **SimBrief** username
 
 ## Quick start
 
