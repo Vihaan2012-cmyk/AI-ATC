@@ -40,8 +40,8 @@ The AI model runs locally, so it's the main cost on top of MSFS itself.
 
 ## Install & run
 
-1. Download and run **`Air-Traffic-Control-Setup.exe`** from the
-   [Releases](https://github.com/Vihaan2012-cmyk/AI-ATC/releases) page.
+1. Download the latest **`Air-Traffic-Control-Setup-*.exe`** from the
+   [Releases](https://github.com/Vihaan2012-cmyk/AI-ATC/releases) page and run it.
 2. On first launch, the **install wizard** checks for Ollama, pulls the AI model, and writes your config.
 3. Launch a flight in MSFS, then start the app and call ATC.
 
