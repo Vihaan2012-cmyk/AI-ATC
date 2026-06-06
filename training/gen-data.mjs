@@ -52,17 +52,46 @@ const TEMPLATES = {
   request_ifr_clearance: [
     'request IFR clearance to {dest}', 'clearance to {dest}', 'ready to copy IFR', 'request our IFR clearance',
     'like to copy clearance', 'IFR to {dest} ready to copy', 'request PDC', 'pre-departure clearance please',
+    // off-template variants the model missed:
+    'standing by to copy', 'ready to copy', 'standing by for clearance', 'got a clearance for us',
+    'we would like our IFR', 'ready to copy our clearance', 'can we get cleared to {dest}',
   ],
-  request_pushback: ['request pushback', 'ready for pushback', 'request push and start', 'push back please', 'ready to push', 'startup and pushback'],
-  request_taxi: ['request taxi', 'ready to taxi', 'request taxi to the active', 'taxi for departure', 'ready to taxi to the runway'],
-  ready_for_departure: ['ready for departure', 'holding short ready for departure', 'ready for takeoff', 'we are ready to go', 'number one ready', 'lined up and ready'],
-  go_around: ['going around', 'go around', 'executing a go around', 'missed approach', 'we are going missed'],
-  request_flight_following: ['request VFR flight following to {dest}', 'request flight following', 'like flight following to {dest}', 'request VFR advisories'],
-  request_pattern: ['request closed traffic', 'remaining in the pattern', 'request pattern work', 'inbound for the pattern', 'request to stay in the pattern', 'enter left downwind'],
-  touch_and_go: ['request touch and go', 'this will be a touch and go', 'request the option', 'low approach please', 'touch and goes requested'],
-  full_stop: ['this will be a full stop', 'inbound full stop', 'request full stop landing', 'to a full stop'],
-  request_hold: ['request holding', 'unable to continue, request hold', 'we need to hold', 'request hold as published', 'enter the hold'],
-  readback: ['roger squawk 4517 climbing to five thousand', 'cleared to {dest} squawk 2200', 'runway 16 left cleared for takeoff', 'descend and maintain three thousand', 'wilco contact tower 119.9'],
+  request_pushback: ['request pushback', 'ready for pushback', 'request push and start', 'push back please', 'ready to push', 'startup and pushback', 'ready to push whenever', 'push approved ready'],
+  request_taxi: [
+    'request taxi', 'ready to taxi', 'request taxi to the active', 'taxi for departure', 'ready to taxi to the runway',
+    // "roll to the runway" should be taxi, not departure:
+    'ready to roll to the runway', 'can we start taxiing', 'where to taxi', 'taxi to the active runway',
+    'ready to taxi out', 'request to taxi to the runway',
+  ],
+  ready_for_departure: [
+    'ready for departure', 'holding short ready for departure', 'ready for takeoff', 'we are ready to go',
+    'number one ready', 'lined up and ready', 'good to go on the runway', 'all set ready when you are',
+    // "holding short <rwy>, ready" must be departure, NOT an enroute hold:
+    'we are set holding short {rwy}', 'holding short {rwy} ready', 'holding short and ready for departure',
+    'buttoned up and ready', 'ready to depart',
+  ],
+  go_around: [
+    'going around', 'go around', 'executing a go around', 'missed approach', 'we are going missed',
+    // go-around without the literal words:
+    'taking it around', 'balked landing going around', 'aborting the landing', 'we are going up and around',
+    'unable to land going around', 'taking it back up',
+  ],
+  request_flight_following: ['request VFR flight following to {dest}', 'request flight following', 'like flight following to {dest}', 'request VFR advisories', 'request traffic advisories VFR', 'can we get advisories to {dest}'],
+  request_pattern: ['request closed traffic', 'remaining in the pattern', 'request pattern work', 'inbound for the pattern', 'request to stay in the pattern', 'enter left downwind', 'we want to stay in the pattern'],
+  touch_and_go: [
+    'request touch and go', 'this will be a touch and go', 'request the option', 'low approach please',
+    'touch and goes requested', 'planning the option', 'the option this time', 'request a stop and go',
+    'this one will be the option', 'request low approach',
+  ],
+  full_stop: ['this will be a full stop', 'inbound full stop', 'request full stop landing', 'to a full stop', 'full stop this time'],
+  request_hold: ['request holding', 'unable to continue request hold', 'we need to hold', 'request hold as published', 'enter the hold', 'we need to hold somewhere'],
+  readback: [
+    'roger squawk 4517 climbing to five thousand', 'cleared to {dest} squawk 2200', 'runway 16 left cleared for takeoff',
+    'descend and maintain three thousand', 'wilco contact tower 119.9',
+    // terse / mixed readbacks the model missed:
+    'climbing five thousand squawk 4521', 'roger tower 118 point 3', 'ok climbing to five thousand squawk 2200',
+    'maintaining three thousand wilco', 'cleared for takeoff runway 16 roger', 'squawk 4521 climbing wilco',
+  ],
 };
 
 // Off-topic / non-ATC inputs that MUST map to "unknown" (keeps it an ATC controller, not a chatbot).
@@ -72,6 +101,10 @@ const NON_ATC = [
   'sing me a song', 'explain quantum physics', 'are you an AI', 'help me with my homework',
   "what's your name", 'translate hello to spanish', 'give me stock tips', 'recommend a movie',
   'whats 2 plus 2', 'how are you doing today', 'thanks for the help bye',
+  // help-seeking / panic that is NOT an ATC request — must still be "unknown", never a chatbot reply:
+  'can you help me land this thing im scared', 'how do I land the plane', 'i dont know how to fly help',
+  'what button do I press to land', 'how do I use the autopilot', 'can you control the plane for me',
+  'whats the best plane in the sim', 'how much fuel do I have', 'is my landing gear down',
 ];
 
 // ---- messy-text augmentation: typos, drops, slang, casing, run-ons ----
@@ -103,10 +136,12 @@ function messify(s, seed) {
   return out;
 }
 
+const RWYS = ['16', '34L', '27', '9', '16L', '22R', '4'];
 function fill(t, seed) {
   return t
     .replace('{dest}', DESTS[seed % DESTS.length])
-    .replace('{cs}', CALLSIGNS[seed % CALLSIGNS.length]);
+    .replace('{cs}', CALLSIGNS[seed % CALLSIGNS.length])
+    .replace('{rwy}', RWYS[seed % RWYS.length]);
 }
 
 // Build one labeled example. Optionally prepend/append the callsign + ATIS like a real call.
