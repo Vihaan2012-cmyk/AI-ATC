@@ -35,7 +35,7 @@ node training/gen-data.mjs --n 8000 --teacher
 Writes `training/data/atc-nlu.jsonl`. Each line is `{"prompt","completion"}` using the **exact**
 prompt the brain sends, so the result is a drop-in.
 
-### 2. Fine-tune (Python — needs a GPU with ~6+ GB VRAM, or CPU with patience)
+### 2. Fine-tune (Python — needs an NVIDIA GPU, or CPU with patience)
 
 ```powershell
 python -m venv .venv ; .venv\Scripts\activate
@@ -44,8 +44,19 @@ pip install -r training/requirements.txt
 python training/train_qlora.py                  # -> training/out/atc-lora
 python training/train_qlora.py --merge          # -> training/out/atc-merged
 ```
-Pick the base with `--base` (default `Qwen/Qwen2.5-1.5B-Instruct`; try `0.5B` for max speed or `3B`
-for max accuracy).
+
+**VRAM budget.** Defaults are tuned to fit **~5 GB** (1.5B base, 4-bit QLoRA, batch 2, gradient
+checkpointing) so an 8 GB card keeps ~3 GB free for your display while training. Control it:
+
+```powershell
+python training/train_qlora.py --vram-budget 4          # cap at 4 GB
+python training/train_qlora.py --base Qwen/Qwen2.5-0.5B-Instruct --vram-budget 4   # smallest/fastest
+python training/train_qlora.py --base Qwen/Qwen2.5-3B-Instruct  --vram-budget 7    # best accuracy, ~7 GB
+```
+
+Rough fit: **0.5B ≈ 2 GB · 1.5B ≈ 3.5 GB · 3B ≈ 6 GB** (training, 4-bit). The `--vram-budget` flag
+hard-caps the process so it stays in budget instead of grabbing the whole card. If you hit an
+out-of-memory error, drop `--batch` to 1, lower `--max-len`, or use a smaller `--base`.
 
 ### 3. Convert to GGUF (for Ollama)
 
