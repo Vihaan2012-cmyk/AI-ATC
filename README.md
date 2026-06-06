@@ -4,6 +4,11 @@ Text + voice AI air traffic control for Microsoft Flight Simulator 2020/2024, in
 You talk to ATC in a desktop app; a **local** AI (Qwen via Ollama, or any local model) replies with realistic
 ATC across a full gate-to-gate flight. Everything runs on your machine — no cloud.
 
+> **It's an ATC controller, not a chatbot.** The AI only handles air-traffic-control requests — it parses
+> what you say into the closest valid pilot request and replies with controller phraseology. It won't answer
+> general questions or act as a co-pilot/assistant. Off-topic input is mapped to the nearest ATC intent or
+> politely asked to "say again."
+
 ## What works
 
 - **Full controller chain**, gate to gate: Clearance Delivery → Ground → Tower → Departure → Center →
@@ -44,6 +49,12 @@ The AI model runs locally, so it's the main cost on top of MSFS itself.
    [Releases](https://github.com/Vihaan2012-cmyk/AI-ATC/releases) page and run it.
 2. On first launch, the **install wizard** checks for Ollama, pulls the AI model, and writes your config.
 3. Launch a flight in MSFS, then start the app and call ATC.
+
+> **Unsigned app — SmartScreen warning is expected.** The installer isn't code-signed (a signing
+> certificate costs money), so Windows will show *"Windows protected your PC."* Click **More info →
+> Run anyway**. This is normal for open-source apps; the source is right here if you'd rather build it
+> yourself. **First launch needs internet** to download the AI model (~9 GB via Ollama); after that it
+> runs fully offline.
 
 Start with `"Delivery, <callsign>, request IFR clearance to <dest>, information Alpha."`, read back the
 clearance (include the squawk), then talk to each controller as you're handed off. The app tracks state,
