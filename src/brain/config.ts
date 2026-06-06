@@ -28,7 +28,7 @@ export const config = {
   llmDevice: (process.env.LLM_DEVICE ?? 'auto') as 'auto' | 'gpu' | 'cpu',
 
   ollamaHost: process.env.OLLAMA_HOST ?? 'http://127.0.0.1:11434',
-  ollamaModel: process.env.OLLAMA_MODEL ?? 'qwen2.5:14b',
+  ollamaModel: process.env.OLLAMA_MODEL ?? 'myaimodels/atc-nlu',
 
   /** Port the WebSocket comms server listens on (the in-sim widget connects here). */
   wsPort: Number(process.env.WS_PORT ?? 8742),

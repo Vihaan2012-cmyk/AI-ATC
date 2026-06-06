@@ -29,20 +29,27 @@ ATC across a full gate-to-gate flight. Everything runs on your machine — no cl
 ## Prerequisites
 
 - **Windows** + **MSFS 2020/2024** (SimConnect is Windows-only)
-- **A local AI**: [Ollama](https://ollama.com) + `ollama pull qwen2.5:14b` (the first-run wizard can do this
-  for you), OR any OpenAI-compatible server
+- **A local AI** via [Ollama](https://ollama.com) — either the light custom model
+  `ollama pull myaimodels/atc-nlu` (~2 GB, recommended) or a general one like `ollama pull qwen2.5:14b`
+  (~9 GB; the first-run wizard can fetch this for you). Any OpenAI-compatible server works too.
 - Optional: a **SimBrief** username (for real flight plans)
 
 ### System requirements
 
-The AI model runs locally, so it's the main cost on top of MSFS itself.
+The AI model runs locally, so it's the main cost on top of MSFS itself. **Which model you use sets
+the bar** — and there's a tiny purpose-built one, so even modest PCs work:
 
-- **RAM:** 32 GB recommended (MSFS wants ~16 GB; `qwen2.5:14b` adds ~10–12 GB). With 16 GB you'll need a
-  smaller model (e.g. `qwen2.5:7b`) or run the AI on a second machine / GPU.
-- **Storage:** ~10 GB free — Ollama + `qwen2.5:14b` (~9 GB) plus the app (~200 MB). Add up to ~3 GB if you
-  download the full Piper HD voice set (voices are optional and fetched on demand).
-- **CPU/GPU:** any modern CPU works (the 14B model runs on CPU so MSFS keeps the GPU); a GPU speeds the AI up
-  and is selectable in settings. A smaller model is much faster if responses feel slow.
+| Setup | RAM | Free disk | Notes |
+| --- | --- | --- | --- |
+| **`myaimodels/atc-nlu`** (recommended) | **16 GB** | **~2.5 GB** | The custom 1.5B ATC model — fast, accurate for ATC, light. `ollama pull myaimodels/atc-nlu` |
+| `qwen2.5:14b` (general, default in wizard) | 32 GB | ~10 GB | Most capable for free-form phrasing, but ~10–12 GB RAM and slower on CPU |
+| `qwen2.5:7b` (middle ground) | 24 GB | ~6 GB | A compromise if you don't want the 14b |
+
+- **CPU/GPU:** any modern CPU works — the model runs on CPU so MSFS keeps the GPU. A GPU speeds the AI
+  up and is selectable in Settings. If responses feel slow, switch to the smaller `atc-nlu` model.
+- **Storage extras:** the app itself is ~200 MB; the optional full Piper HD voice set adds up to ~3 GB
+  (voices are fetched on demand, not bundled).
+- MSFS itself wants ~16 GB RAM, so the RAM figures above are *total* (sim + model).
 
 ## Install & run
 
@@ -54,8 +61,8 @@ The AI model runs locally, so it's the main cost on top of MSFS itself.
 > **Unsigned app — SmartScreen warning is expected.** The installer isn't code-signed (a signing
 > certificate costs money), so Windows will show *"Windows protected your PC."* Click **More info →
 > Run anyway**. This is normal for open-source apps; the source is right here if you'd rather build it
-> yourself. **First launch needs internet** to download the AI model (~9 GB via Ollama); after that it
-> runs fully offline.
+> yourself. **First launch needs internet** to download the AI model via Ollama (~2 GB for the custom
+> `atc-nlu`, or ~9 GB for `qwen2.5:14b`); after that it runs fully offline.
 
 Start with `"Delivery, <callsign>, request IFR clearance to <dest>, information Alpha."`, read back the
 clearance (include the squawk), then talk to each controller as you're handed off. The app tracks state,
@@ -83,10 +90,19 @@ text → intent). You can **fine-tune a small model for just that**, getting a r
 accurate on messy phrasing and several times faster* than the 14B — which matters since the model
 runs on CPU while MSFS uses the GPU.
 
-The [`training/`](training/) folder has the whole pipeline (synthetic data → QLoRA → Ollama). A
-reference 1.5B fine-tune hits **~97% on novel input at ~3× the speed of qwen2.5:14b**. See
-[training/README.md](training/README.md). Once built: `ollama create atc-nlu -f training/Modelfile`,
-then set `OLLAMA_MODEL=atc-nlu`.
+A reference 1.5B fine-tune hits **~97% on novel input at ~3× the speed of qwen2.5:14b**. Two ways
+to use it:
+
+**Just pull the pre-built one** (no training, ~2 GB download):
+
+```powershell
+ollama pull myaimodels/atc-nlu
+```
+Then set `OLLAMA_MODEL=myaimodels/atc-nlu` in `.env` (or Setup → AI model).
+
+**Or train your own** — the [`training/`](training/) folder has the whole pipeline (synthetic data →
+QLoRA → Ollama). See [training/README.md](training/README.md). Once built:
+`ollama create atc-nlu -f training/Modelfile`, then set `OLLAMA_MODEL=atc-nlu`.
 
 ## Building from source
 

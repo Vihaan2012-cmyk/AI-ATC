@@ -216,9 +216,9 @@
           <div class="sect">
             <h3>AI model</h3>
             <div class="row"><label>Provider</label><select id="cfgProvider"><option value="ollama">Ollama (local)</option><option value="openai-compatible">OpenAI-compatible (LM Studio, llama.cpp...)</option></select></div>
-            <div class="row"><label>Model</label><input type="text" id="cfgModel" placeholder="qwen2.5:14b" /></div>
+            <div class="row"><label>Model</label><input type="text" id="cfgModel" placeholder="myaimodels/atc-nlu" /></div>
             <div class="row"><label>Run on</label><select id="cfgDevice"><option value="auto">Auto (let it decide)</option><option value="gpu">GPU</option><option value="cpu">CPU</option></select></div>
-            <div class="note" style="color:#e0a14a;">&#9888; Leave the model as <b>qwen2.5:14b</b> unless you know what you're doing &mdash; other models may break ATC phrasing or be too slow.</div>
+            <div class="note" style="color:#e0a14a;">&#9888; Leave the model as <b>myaimodels/atc-nlu</b> (fast, ATC-tuned) unless you know what you're doing. For free-form phrasing you can use <b>qwen2.5:14b</b>, but it's larger and slower.</div>
             <button class="btn" id="saveConn">Save connection &amp; AI</button>
             <div class="note">Saved to the brain's .env. Restart the brain to apply.</div>
           </div>

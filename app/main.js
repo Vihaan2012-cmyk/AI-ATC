@@ -51,7 +51,7 @@ function ensureEnv() {
   if (fs.existsSync(envPath)) return;
   try {
     if (fs.existsSync(envExamplePath)) fs.copyFileSync(envExamplePath, envPath);
-    else fs.writeFileSync(envPath, 'LLM_PROVIDER=ollama\nOLLAMA_MODEL=qwen2.5:14b\nNAVDATA_SOURCES=sim\n');
+    else fs.writeFileSync(envPath, 'LLM_PROVIDER=ollama\nOLLAMA_MODEL=myaimodels/atc-nlu\nNAVDATA_SOURCES=sim\n');
   } catch { /* ignore */ }
 }
 
@@ -60,7 +60,7 @@ function ollamaExe() {
   return fs.existsSync(local) ? local : 'ollama';
 }
 function ollamaHost() { return (readEnv().OLLAMA_HOST || 'http://127.0.0.1:11434').replace(/\/+$/, ''); }
-function modelName() { return readEnv().OLLAMA_MODEL || 'qwen2.5:14b'; }
+function modelName() { return readEnv().OLLAMA_MODEL || 'myaimodels/atc-nlu'; }
 
 // ---- prerequisites ----
 function depsOk() { return fs.existsSync(path.join(repoRoot, 'node_modules')); }
@@ -168,7 +168,7 @@ ipcMain.handle('config:get', () => {
   return {
     SIMBRIEF_USERNAME: env.SIMBRIEF_USERNAME || '', SIMBRIEF_USERID: env.SIMBRIEF_USERID || '',
     HOPPIE_LOGON: env.HOPPIE_LOGON || '', LLM_PROVIDER: env.LLM_PROVIDER || 'ollama',
-    LLM_MODEL: env.LLM_MODEL || '', OLLAMA_MODEL: env.OLLAMA_MODEL || 'qwen2.5:14b',
+    LLM_MODEL: env.LLM_MODEL || '', OLLAMA_MODEL: env.OLLAMA_MODEL || 'myaimodels/atc-nlu',
     LLM_DEVICE: env.LLM_DEVICE || 'auto',
     ATC_STRICTNESS: env.ATC_STRICTNESS || 'normal', ATC_CHATTER: env.ATC_CHATTER || 'low',
   };
