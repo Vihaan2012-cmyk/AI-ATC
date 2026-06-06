@@ -18,6 +18,7 @@ import { spokenFlightCallsign } from '../util/aircraft.js';
 import { HoppieClient } from './hoppie.js';
 import { ChatterGenerator, type ChatterLevel } from '../atc/chatter.js';
 import { ReactiveMonitor } from '../atc/monitor.js';
+import { airportCoords } from '../navdata/airports.js';
 import type { ControllerKind } from '../types.js';
 
 // Short station labels for reactive callouts (by active controller kind).
@@ -128,6 +129,16 @@ function dashboardData(deps: CommsDeps, lastPos: { lat: number; lon: number; hdg
   }
   const topRoutes = Object.entries(routes).sort((a, b) => b[1] - a[1]).slice(0, 5)
     .map(([route, count]) => ({ route, count }));
+
+  // Coordinates for every airport seen (logbook + live), so the globe can plot all of them.
+  const coords: Record<string, [number, number]> = {};
+  const addCoord = (icao?: string) => {
+    if (!icao) return;
+    const c = airportCoords(icao);
+    if (c) coords[icao.toUpperCase()] = c;
+  };
+  for (const a of airports) addCoord(a);
+  addCoord(deps.fp.origin); addCoord(deps.fp.destination);
   return {
     callsign: deps.fp.callsign,
     live: {
@@ -149,7 +160,12 @@ function dashboardData(deps: CommsDeps, lastPos: { lat: number; lon: number; hdg
     recent: log.slice(0, 20).map((e) => ({
       callsign: e.callsign, origin: e.origin, destination: e.destination,
       readbackAccuracy: num(e.readbackAccuracy), declaredEmergency: !!e.declaredEmergency, savedAt: e.savedAt,
+      // pass through any richer fields the app saved (aircraft, route, cruise, etc.)
+      aircraft: e.aircraft ?? null, route: e.route ?? null, cruiseAltitudeFt: e.cruiseAltitudeFt ?? null,
+      flightRules: e.flightRules ?? null, readbacksCorrect: e.readbacksCorrect ?? null,
+      readbacksExpected: e.readbacksExpected ?? null,
     })),
+    coords,
   };
 }
 
@@ -157,7 +173,7 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
   // Latest live position sample, for the dashboard's /api/dashboard snapshot.
   let lastPos: { lat: number; lon: number; hdg: number; altFt: number; gsKt: number; onGround: boolean } | null = null;
   const http = createServer((req, res) => {
-    const path = (req.url ?? '/').split('?')[0];
+    const path = (req.url ?? '/').split('?')[0] ?? '/';
     if (req.method === 'GET' && (path === '/' || path === '/atc-widget.html')) {
       try {
         res.writeHead(200, {
@@ -178,6 +194,15 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
         res.end(readFileSync(DASHBOARD_HTML));
       } catch {
         res.writeHead(500); res.end('dashboard HTML not found');
+      }
+      return;
+    }
+    if (req.method === 'GET' && path.startsWith('/lib/') && /^\/lib\/[\w.-]+\.js$/.test(path)) {
+      try {
+        res.writeHead(200, { 'content-type': 'application/javascript', 'cache-control': 'max-age=86400' });
+        res.end(readFileSync(join(here, '..', '..', '..', 'widget', path.replace('/lib/', 'lib/'))));
+      } catch {
+        res.writeHead(404); res.end('not found');
       }
       return;
     }

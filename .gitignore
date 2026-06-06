@@ -11,8 +11,9 @@ app/release/
 .env
 .env.local
 
-# Navigraph navdata — licensed for personal use, do NOT commit
-navdata/
+# Navigraph navdata — licensed for personal use, do NOT commit.
+# Anchored to repo root so it does NOT match the src/brain/navdata/ SOURCE folder.
+/navdata/
 *.s3db
 *.db
 *.sqlite

@@ -788,7 +788,9 @@ function renderLogbook(){
 if(EL){
   $('logbookSect').style.display='block';
   $('logSave').addEventListener('click',function(){
-    var entry = Object.assign({ origin: flight&&flight.origin, destination: flight&&flight.destination, callsign: flight&&flight.callsign, transcript: transcriptText() }, lastScore||{});
+    var base = { origin: flight&&flight.origin, destination: flight&&flight.destination, callsign: flight&&flight.callsign, transcript: transcriptText() };
+    if(fpinfo){ base.aircraft = fpinfo.aircraftName||fpinfo.aircraft; base.route = fpinfo.route; base.cruiseAltitudeFt = fpinfo.cruise; base.flightRules = fpinfo.rules; }
+    var entry = Object.assign(base, lastScore||{});
     EL.addLogbook(entry).then(function(){ renderLogbook(); entryMsg('Flight saved to logbook.'); });
   });
   $('logClear').addEventListener('click',function(){ if(!confirm('Clear the entire logbook?'))return; EL.clearLogbook().then(renderLogbook); });
