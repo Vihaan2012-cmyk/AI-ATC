@@ -239,6 +239,8 @@
             <div id="scoreNow" class="note" style="margin-bottom:6px;">No active flight yet.</div>
             <button class="btn" id="logSave">Save this flight</button>
             <button class="btn" id="logClear" style="background:#3a1820;color:#ffd0d6;margin-left:8px;">Clear logbook</button>
+            <button class="btn" id="openDash" style="background:#18283a;color:#cfe0f2;margin-left:8px;">Open flight dashboard</button>
+            <div class="note" style="margin-top:6px;">The dashboard opens in your browser — live map, stats, and flight history.</div>
             <div id="logList" class="piperlist" style="margin-top:8px;"></div>
           </div>
           <div class="sect">
@@ -790,6 +792,7 @@ if(EL){
     EL.addLogbook(entry).then(function(){ renderLogbook(); entryMsg('Flight saved to logbook.'); });
   });
   $('logClear').addEventListener('click',function(){ if(!confirm('Clear the entire logbook?'))return; EL.clearLogbook().then(renderLogbook); });
+  if($('openDash')) $('openDash').addEventListener('click',function(){ if(EL.openDashboard) EL.openDashboard(); });
 }
 function entryMsg(t){ entry('sys','','',t); }
 

@@ -40,6 +40,16 @@ const ADVISORY: Record<string, string> = {
 
 const here = dirname(fileURLToPath(import.meta.url));
 const WIDGET_HTML = join(here, '..', '..', '..', 'widget', 'atc-widget.html');
+const DASHBOARD_HTML = join(here, '..', '..', '..', 'widget', 'dashboard.html');
+
+// Electron stores the logbook here; the dashboard reads the same file so history shows up.
+function logbookPath(): string {
+  const appData = process.env.APPDATA || join(process.env.USERPROFILE || '', 'AppData', 'Roaming');
+  return join(appData, 'Air Traffic Control', 'logbook.json');
+}
+function readLogbook(): unknown[] {
+  try { return JSON.parse(readFileSync(logbookPath(), 'utf8')); } catch { return []; }
+}
 
 export interface CommsDeps {
   session: ControllerSession;
@@ -99,7 +109,53 @@ function buildPdc(fp: FlightPlan): string {
   ].filter(Boolean).join('\n');
 }
 
+// Aggregate stats from the logbook + the live flight, for the dashboard.
+function dashboardData(deps: CommsDeps, lastPos: { lat: number; lon: number; hdg: number; altFt: number; gsKt: number; onGround: boolean } | null) {
+  const log = readLogbook() as Array<Record<string, unknown>>;
+  const num = (v: unknown) => (typeof v === 'number' ? v : 0);
+  const flights = log.length;
+  const airports = new Set<string>();
+  let accSum = 0, accN = 0, emergencies = 0;
+  const routes: Record<string, number> = {};
+  for (const e of log) {
+    if (typeof e.origin === 'string') airports.add(e.origin);
+    if (typeof e.destination === 'string') airports.add(e.destination);
+    if (typeof e.readbackAccuracy === 'number') { accSum += e.readbackAccuracy; accN++; }
+    if (e.declaredEmergency) emergencies++;
+    if (typeof e.origin === 'string' && typeof e.destination === 'string') {
+      const k = `${e.origin}-${e.destination}`; routes[k] = (routes[k] ?? 0) + 1;
+    }
+  }
+  const topRoutes = Object.entries(routes).sort((a, b) => b[1] - a[1]).slice(0, 5)
+    .map(([route, count]) => ({ route, count }));
+  return {
+    callsign: deps.fp.callsign,
+    live: {
+      active: deps.sim != null && lastPos != null,
+      origin: deps.fp.origin, destination: deps.fp.destination,
+      aircraft: deps.fp.aircraftIcao, controller: deps.session.activeKind,
+      pos: lastPos,
+      originPos: deps.fp.originLat != null ? { lat: deps.fp.originLat, lon: deps.fp.originLon } : null,
+      destPos: deps.fp.destLat != null ? { lat: deps.fp.destLat, lon: deps.fp.destLon } : null,
+      waypoints: deps.fp.waypoints ?? [],
+    },
+    stats: {
+      flights,
+      airportsVisited: airports.size,
+      avgReadbackAccuracy: accN ? Math.round(accSum / accN) : null,
+      emergencies,
+      topRoutes,
+    },
+    recent: log.slice(0, 20).map((e) => ({
+      callsign: e.callsign, origin: e.origin, destination: e.destination,
+      readbackAccuracy: num(e.readbackAccuracy), declaredEmergency: !!e.declaredEmergency, savedAt: e.savedAt,
+    })),
+  };
+}
+
 export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer {
+  // Latest live position sample, for the dashboard's /api/dashboard snapshot.
+  let lastPos: { lat: number; lon: number; hdg: number; altFt: number; gsKt: number; onGround: boolean } | null = null;
   const http = createServer((req, res) => {
     const path = (req.url ?? '/').split('?')[0];
     if (req.method === 'GET' && (path === '/' || path === '/atc-widget.html')) {
@@ -114,6 +170,21 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
         res.writeHead(500);
         res.end('widget HTML not found');
       }
+      return;
+    }
+    if (req.method === 'GET' && path === '/dashboard') {
+      try {
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+        res.end(readFileSync(DASHBOARD_HTML));
+      } catch {
+        res.writeHead(500); res.end('dashboard HTML not found');
+      }
+      return;
+    }
+    if (req.method === 'GET' && path === '/api/dashboard') {
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store',
+        'access-control-allow-origin': '*' });
+      res.end(JSON.stringify(dashboardData(deps, lastPos)));
       return;
     }
     res.writeHead(404);
@@ -210,11 +281,9 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
     let lastPhase = '';
     try {
       deps.sim.subscribeFlightState((s) => {
-        broadcast({
-          type: 'position',
-          lat: s.latitude, lon: s.longitude, hdg: s.headingTrue,
-          altFt: s.altitudeFt, gsKt: s.groundSpeedKt, onGround: s.onGround,
-        });
+        lastPos = { lat: s.latitude, lon: s.longitude, hdg: s.headingTrue,
+          altFt: s.altitudeFt, gsKt: s.groundSpeedKt, onGround: s.onGround };
+        broadcast({ type: 'position', ...lastPos });
         // Frequency awareness: tell the session what COM1 is tuned to.
         if (s.com1Mhz) deps.session.setCom1(s.com1Mhz);
 
@@ -240,6 +309,7 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
 
   http.listen(port, () => {
     console.log(`Comms: widget http://localhost:${port}/  |  WebSocket ws://localhost:${port}`);
+    console.log(`Dashboard: http://localhost:${port}/dashboard`);
   });
   return wss;
 }

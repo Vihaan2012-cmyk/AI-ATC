@@ -186,6 +186,12 @@ ipcMain.handle('logbook:add', (_e, entry) => {
 });
 ipcMain.handle('logbook:clear', () => { writeJson(logbookFile(), []); return true; });
 
+// Open the local flight dashboard (served by the brain) in the default browser.
+ipcMain.handle('open:dashboard', () => {
+  const port = readEnv().WS_PORT || '8742';
+  return shell.openExternal(`http://localhost:${port}/dashboard`);
+});
+
 // ---- Piper HD voices ----
 const plog = (line) => { if (win) win.webContents.send('piper:log', line); };
 ipcMain.handle('piper:status', async () => { try { return await getPiper().status(); } catch (e) { return { error: e.message, binary: false, total: 0, installed: 0, continents: [] }; } });

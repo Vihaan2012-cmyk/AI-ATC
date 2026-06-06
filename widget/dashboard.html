@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI ATC — Flight Dashboard</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  :root { --accent:#6f8cff; --g1:#2fb6ff; --g2:#9b5cff; --bg:#0b1119; --panel:#111c28; --line:#1d2c3c; --ink:#dbe6f1; --dim:#7d93a8; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 "Segoe UI",system-ui,sans-serif; }
+  a { color: var(--accent); }
+  header { display:flex; align-items:center; gap:14px; padding:16px 22px; border-bottom:1px solid var(--line);
+    background:linear-gradient(90deg, rgba(47,182,255,.10), rgba(155,92,255,.06)); }
+  header h1 { margin:0; font-size:18px; font-weight:800; letter-spacing:.3px; }
+  header h1 .code { font-family:ui-monospace,Consolas,monospace; background:#0d1722; border:1px solid var(--line); padding:2px 8px; border-radius:7px; }
+  header .cs { margin-left:auto; color:var(--dim); font-family:ui-monospace,Consolas,monospace; }
+  .live-dot { width:9px; height:9px; border-radius:50%; background:#445; display:inline-block; }
+  .live-dot.on { background:#43d17a; box-shadow:0 0 0 0 rgba(67,209,122,.6); animation:p 1.4s infinite; }
+  @keyframes p { 0%{box-shadow:0 0 0 0 rgba(67,209,122,.5)} 70%{box-shadow:0 0 0 7px rgba(67,209,122,0)} 100%{box-shadow:0 0 0 0 rgba(67,209,122,0)} }
+  .wrap { padding:18px 22px; max-width:1200px; margin:0 auto; }
+  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:18px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
+  .card .k { font-size:11px; text-transform:uppercase; letter-spacing:.7px; color:var(--dim); }
+  .card .v { font-size:26px; font-weight:800; margin-top:4px; background:linear-gradient(135deg,var(--g1),var(--g2)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .grid2 { display:grid; grid-template-columns:1.6fr 1fr; gap:16px; }
+  @media (max-width:880px){ .grid2 { grid-template-columns:1fr; } }
+  .sect { background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  .sect h2 { margin:0; padding:12px 16px; font-size:13px; text-transform:uppercase; letter-spacing:.6px; color:#9fd0ff; border-bottom:1px solid var(--line); }
+  #map { height:420px; width:100%; background:#0d1722; }
+  .livebar { display:flex; gap:18px; flex-wrap:wrap; padding:11px 16px; font-size:12px; color:var(--dim); border-bottom:1px solid var(--line); }
+  .livebar b { color:var(--ink); font-family:ui-monospace,Consolas,monospace; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th,td { text-align:left; padding:9px 16px; border-bottom:1px solid var(--line); }
+  th { font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:var(--dim); font-weight:700; }
+  td.route { font-family:ui-monospace,Consolas,monospace; }
+  .badge { font-size:11px; font-weight:700; padding:2px 7px; border-radius:20px; }
+  .badge.good { color:#43d17a; background:rgba(67,209,122,.12); }
+  .badge.mid { color:#e0a14a; background:rgba(224,161,74,.12); }
+  .badge.bad { color:#ff6b6b; background:rgba(255,107,107,.12); }
+  .emoji { font-size:13px; }
+  .empty { padding:22px 16px; color:var(--dim); text-align:center; }
+  .foot { color:var(--dim); font-size:11px; padding:14px 22px; text-align:center; }
+  .routes li { display:flex; justify-content:space-between; padding:7px 16px; border-bottom:1px solid var(--line); font-size:13px; }
+  .routes { list-style:none; margin:0; padding:0; }
+  .routes .ct { color:var(--dim); }
+</style>
+</head>
+<body>
+  <header>
+    <h1>AI <span class="code">ATC</span> Flight Dashboard</h1>
+    <span class="cs"><span class="live-dot" id="dot"></span> <span id="cs">—</span></span>
+  </header>
+
+  <div class="wrap">
+    <div class="cards">
+      <div class="card"><div class="k">Total flights</div><div class="v" id="s-flights">—</div></div>
+      <div class="card"><div class="k">Airports visited</div><div class="v" id="s-airports">—</div></div>
+      <div class="card"><div class="k">Avg readback</div><div class="v" id="s-acc">—</div></div>
+      <div class="card"><div class="k">Emergencies</div><div class="v" id="s-emerg">—</div></div>
+    </div>
+
+    <div class="grid2">
+      <div class="sect">
+        <h2>Live flight</h2>
+        <div class="livebar" id="livebar"><span>No active flight — start the brain with MSFS running.</span></div>
+        <div id="map"></div>
+      </div>
+
+      <div class="sect">
+        <h2>Top routes</h2>
+        <ul class="routes" id="routes"><li class="empty">No flights logged yet.</li></ul>
+      </div>
+    </div>
+
+    <div class="sect" style="margin-top:16px;">
+      <h2>Recent flights</h2>
+      <table>
+        <thead><tr><th>Callsign</th><th>Route</th><th>Readback</th><th>When</th></tr></thead>
+        <tbody id="recent"><tr><td colspan="4" class="empty">No flights logged yet. Fly and save to your logbook in the app.</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="foot">Local dashboard · served by the ATC brain · auto-refreshes every 5s</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+var $ = function(id){ return document.getElementById(id); };
+var map, acMarker, routeLine, wpLayer;
+
+function initMap(){
+  map = L.map('map',{zoomControl:false,attributionControl:false}).setView([30,0],2);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:18}).addTo(map);
+  L.control.zoom({position:'bottomright'}).addTo(map);
+}
+
+function planeIcon(hdg){
+  return L.divIcon({ className:'', html:'<div style="transform:rotate('+(hdg||0)+'deg);font-size:20px;line-height:1">✈️</div>', iconSize:[20,20], iconAnchor:[10,10] });
+}
+
+function drawLive(live){
+  if(!map) initMap();
+  if(wpLayer){ wpLayer.remove(); } wpLayer = L.layerGroup().addTo(map);
+  var pts = [];
+  if(live.originPos){ pts.push([live.originPos.lat, live.originPos.lon]);
+    L.circleMarker([live.originPos.lat,live.originPos.lon],{radius:5,color:'#5fe08a',weight:2,fillOpacity:1}).bindTooltip(live.origin,{permanent:true,direction:'top',className:''}).addTo(wpLayer); }
+  (live.waypoints||[]).forEach(function(w){ pts.push([w.lat,w.lon]); L.circleMarker([w.lat,w.lon],{radius:2,color:'#86d8c6',weight:1,fillOpacity:1}).addTo(wpLayer); });
+  if(live.destPos){ pts.push([live.destPos.lat, live.destPos.lon]);
+    L.circleMarker([live.destPos.lat,live.destPos.lon],{radius:5,color:'#ff8a6b',weight:2,fillOpacity:1}).bindTooltip(live.destination,{permanent:true,direction:'top',className:''}).addTo(wpLayer); }
+  if(routeLine){ routeLine.remove(); routeLine=null; }
+  if(pts.length>=2){ routeLine=L.polyline(pts,{color:'#9b5cff',weight:3,opacity:.85}).addTo(map); }
+  if(live.pos){
+    var ll=[live.pos.lat, live.pos.lon];
+    if(!acMarker){ acMarker=L.marker(ll,{icon:planeIcon(live.pos.hdg)}).addTo(map); } else { acMarker.setLatLng(ll); acMarker.setIcon(planeIcon(live.pos.hdg)); }
+  } else if(acMarker){ acMarker.remove(); acMarker=null; }
+  try { if(pts.length>=2 && routeLine) map.fitBounds(routeLine.getBounds().pad(0.3)); } catch(e){}
+}
+
+function accBadge(a){
+  if(a==null) return '<span class="badge mid">n/a</span>';
+  var c = a>=90?'good':a>=70?'mid':'bad';
+  return '<span class="badge '+c+'">'+a+'%</span>';
+}
+function whenStr(iso){ if(!iso) return ''; try{ var d=new Date(iso); return (d.getMonth()+1)+'/'+d.getDate()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }catch(e){ return ''; } }
+function esc(s){ return String(s==null?'':s).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
+
+function render(d){
+  $('cs').textContent = d.callsign || '—';
+  $('dot').className = 'live-dot' + (d.live && d.live.active ? ' on' : '');
+  // stats
+  $('s-flights').textContent = d.stats.flights;
+  $('s-airports').textContent = d.stats.airportsVisited;
+  $('s-acc').textContent = d.stats.avgReadbackAccuracy==null ? '—' : d.stats.avgReadbackAccuracy+'%';
+  $('s-emerg').textContent = d.stats.emergencies;
+  // live bar
+  var lb = $('livebar');
+  if(d.live && d.live.active && d.live.pos){
+    var p=d.live.pos;
+    lb.innerHTML = '<span>'+esc(d.live.origin)+' &#9656; '+esc(d.live.destination)+'</span>'+
+      '<span>AC <b>'+esc(d.live.aircraft)+'</b></span>'+
+      '<span>ATC <b>'+esc(d.live.controller)+'</b></span>'+
+      '<span>ALT <b>'+Math.round(p.altFt)+' ft</b></span>'+
+      '<span>GS <b>'+Math.round(p.gsKt)+' kt</b></span>'+
+      '<span>HDG <b>'+Math.round(p.hdg)+'°</b></span>';
+    drawLive(d.live);
+  } else {
+    lb.innerHTML = '<span>No active flight — open a flight in MSFS with the app running.</span>';
+    if(d.live){ drawLive(d.live); } // still show the planned route if we have one
+  }
+  // top routes
+  var ru = $('routes');
+  if(d.stats.topRoutes.length){ ru.innerHTML = d.stats.topRoutes.map(function(r){ return '<li><span class="route" style="font-family:ui-monospace,Consolas,monospace">'+esc(r.route)+'</span><span class="ct">'+r.count+'×</span></li>'; }).join(''); }
+  else { ru.innerHTML = '<li class="empty">No flights logged yet.</li>'; }
+  // recent table
+  var tb = $('recent');
+  if(d.recent.length){
+    tb.innerHTML = d.recent.map(function(e){
+      return '<tr><td>'+esc(e.callsign)+'</td><td class="route">'+esc(e.origin)+'→'+esc(e.destination)+'</td>'+
+        '<td>'+accBadge(e.readbackAccuracy)+(e.declaredEmergency?' <span class="emoji" title="emergency declared">⚠️</span>':'')+'</td>'+
+        '<td style="color:var(--dim)">'+whenStr(e.savedAt)+'</td></tr>';
+    }).join('');
+  } else {
+    tb.innerHTML = '<tr><td colspan="4" class="empty">No flights logged yet. Fly and save to your logbook in the app.</td></tr>';
+  }
+}
+
+function refresh(){
+  fetch('/api/dashboard').then(function(r){ return r.json(); }).then(render).catch(function(){});
+}
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>
