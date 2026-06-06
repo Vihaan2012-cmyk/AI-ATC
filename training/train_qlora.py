@@ -31,7 +31,12 @@ def parse_args():
                    help="Base model. 1.5B fits ~5 GB. Use 0.5B for max speed / smaller budget; 3B needs ~7 GB.")
     p.add_argument("--data", default=os.path.join("training", "data", "atc-nlu.jsonl"))
     p.add_argument("--out", default=os.path.join("training", "out", "atc-lora"))
-    p.add_argument("--epochs", type=float, default=3.0)
+    p.add_argument("--epochs", type=float, default=8.0,
+                   help="MAX epochs. Training early-stops when eval accuracy plateaus (see --patience).")
+    p.add_argument("--eval-holdout", type=int, default=120,
+                   help="Examples held out for per-epoch accuracy eval (a 25-example sample is also printed).")
+    p.add_argument("--patience", type=int, default=2,
+                   help="Stop after this many epochs with no eval-accuracy improvement; keep the best checkpoint.")
     p.add_argument("--lr", type=float, default=2e-4)
     p.add_argument("--batch", type=int, default=2)
     p.add_argument("--grad-accum", type=int, default=8)  # effective batch 16
@@ -124,8 +129,100 @@ def main():
     model = get_peft_model(model, lora)
     model.print_trainable_parameters()
 
-    ds = load_dataset("json", data_files=args.data, split="train")
-    ds = ds.map(lambda ex: format_example(tok, ex), remove_columns=ds.column_names)
+    # Load raw pairs, hold out an eval set for per-epoch accuracy, format the rest for training.
+    raw = load_dataset("json", data_files=args.data, split="train").shuffle(seed=42)
+    n_eval = min(args.eval_holdout, max(20, len(raw) // 10))
+    eval_pairs = [raw[i] for i in range(n_eval)]          # {"prompt","completion"} dicts
+    train_raw = raw.select(range(n_eval, len(raw)))
+    train_ds = train_raw.map(lambda ex: format_example(tok, ex), remove_columns=train_raw.column_names)
+    print(f"Train: {len(train_ds)} examples | held-out eval: {len(eval_pairs)}")
+
+    import json as _json
+    import copy
+    from transformers import TrainerCallback
+
+    class EarlyStopByAccuracy(TrainerCallback):
+        """Keep the best LoRA weights by eval accuracy; stop after `patience` epochs w/o improvement."""
+        def __init__(self, patience=2, min_delta=0.001):
+            self.patience = patience
+            self.min_delta = min_delta
+            self.best = -1.0
+            self.best_state = None
+            self.bad = 0
+
+        def on_epoch_end(self, a, state, control, model=None, **kw):
+            # EpochEval (added after this callback) appends eval_intent_acc to log_history.
+            accs = [h["eval_intent_acc"] for h in state.log_history if "eval_intent_acc" in h]
+            if not accs:
+                return control
+            acc = accs[-1]
+            if acc > self.best + self.min_delta:
+                self.best = acc
+                self.bad = 0
+                # snapshot only the trainable (LoRA) tensors — small, fits in RAM
+                self.best_state = copy.deepcopy({k: v.detach().cpu()
+                                                 for k, v in model.named_parameters() if v.requires_grad})
+                print(f"   ↑ new best accuracy {acc*100:.1f}% (snapshot kept)")
+            else:
+                self.bad += 1
+                print(f"   = no improvement ({self.bad}/{self.patience}); best {self.best*100:.1f}%")
+                if self.bad >= self.patience:
+                    print("   ⤓ early stopping — restoring best checkpoint.")
+                    control.should_training_stop = True
+            return control
+
+        def on_train_end(self, a, state, control, model=None, **kw):
+            if self.best_state is not None:
+                missing = 0
+                msd = dict(self.best_state)
+                for k, v in model.named_parameters():
+                    if k in msd:
+                        v.data.copy_(msd[k].to(v.device))
+                    elif v.requires_grad:
+                        missing += 1
+                print(f"   restored best LoRA weights (acc {self.best*100:.1f}%, {missing} params not matched)")
+            return control
+
+    def expected_intent(completion):
+        try:
+            return _json.loads(completion).get("intent")
+        except Exception:
+            return None
+
+    @torch.no_grad()
+    def eval_accuracy(show_samples=25):
+        """Generate on the held-out set, parse intent, return accuracy. Prints a small sample."""
+        model.eval()
+        correct, shown = 0, 0
+        for i, ex in enumerate(eval_pairs):
+            inputs = tok(ex["prompt"], return_tensors="pt").to(model.device)
+            out = model.generate(**inputs, max_new_tokens=40, do_sample=False,
+                                 pad_token_id=tok.eos_token_id)
+            gen = tok.decode(out[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
+            want = expected_intent(ex["completion"])
+            got = None
+            try:
+                got = _json.loads(gen[gen.index("{"): gen.index("}") + 1]).get("intent")
+            except Exception:
+                pass
+            ok = got == want
+            correct += int(ok)
+            if shown < show_samples:
+                pilot = ex["prompt"].split('Pilot: "')[-1].split('"')[0]
+                print(f"   [{'OK ' if ok else 'XX '}] {pilot[:42]:42s} -> got={got} want={want}")
+                shown += 1
+        model.train()
+        return correct / max(1, len(eval_pairs))
+
+    class EpochEval(TrainerCallback):
+        def on_epoch_end(self, a, state, control, **kw):
+            ep = int(round(state.epoch))
+            print(f"\n=== Eval after epoch {ep} ===")
+            acc = eval_accuracy()
+            print(f"=== Epoch {ep}: intent accuracy = {acc*100:.1f}% ({len(eval_pairs)} held-out) ===\n")
+            # Record metric so HF's early-stopping + best-checkpoint logic can use it.
+            state.log_history.append({"epoch": state.epoch, "eval_intent_acc": acc})
+            self.last_acc = acc
 
     targs = TrainingArguments(
         output_dir=args.out,
@@ -134,7 +231,6 @@ def main():
         gradient_accumulation_steps=args.grad_accum,
         learning_rate=args.lr,
         bf16=False, fp16=use_cuda,
-        # Gradient checkpointing trades a little speed for a big VRAM saving — key to the budget.
         gradient_checkpointing=use_cuda,
         gradient_checkpointing_kwargs={"use_reentrant": False} if use_cuda else None,
         logging_steps=20, save_strategy="epoch",
@@ -144,10 +240,13 @@ def main():
     )
 
     trainer = SFTTrainer(
-        model=model, train_dataset=ds, args=targs,
+        model=model, train_dataset=train_ds, args=targs,
         dataset_text_field="text", max_seq_length=args.max_len, tokenizer=tok,
+        callbacks=[EpochEval()],                       # evaluates + logs accuracy first
     )
+    trainer.add_callback(EarlyStopByAccuracy(patience=args.patience))  # then decides stop/keep-best
     trainer.train()
+
     trainer.save_model(args.out)
     tok.save_pretrained(args.out)
     print(f"LoRA adapter saved to {args.out}")
