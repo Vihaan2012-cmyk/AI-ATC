@@ -74,7 +74,8 @@ const TEMPLATES = {
     'going around', 'go around', 'executing a go around', 'missed approach', 'we are going missed',
     // go-around without the literal words:
     'taking it around', 'balked landing going around', 'aborting the landing', 'we are going up and around',
-    'unable to land going around', 'taking it back up',
+    'unable to land going around', 'taking it back up', 'balked landing going up', 'balked landing climbing out',
+    'discontinuing the approach climbing', 'not landing going back up', 'pulling up and going around',
   ],
   request_flight_following: ['request VFR flight following to {dest}', 'request flight following', 'like flight following to {dest}', 'request VFR advisories', 'request traffic advisories VFR', 'can we get advisories to {dest}'],
   request_pattern: ['request closed traffic', 'remaining in the pattern', 'request pattern work', 'inbound for the pattern', 'request to stay in the pattern', 'enter left downwind', 'we want to stay in the pattern'],
