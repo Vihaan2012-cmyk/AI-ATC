@@ -1,6 +1,6 @@
 {
   "name": "msfs-ai-atc-widget",
-  "version": "0.3.0",
+  "version": "0.2.5",
   "private": true,
   "description": "Frameless always-on-top desktop app for MSFS AI ATC.",
   "main": "main.js",

@@ -1,4 +1,4 @@
-# AI ATC — v0.3.0
+# AI ATC — v0.2.5
 
 Local **text + voice AI air traffic control** for Microsoft Flight Simulator 2020/2024, in the spirit
 of Beyond ATC. Everything runs on your machine — no cloud, no subscription.
@@ -7,7 +7,7 @@ It's an **ATC controller, not a chatbot**: a deterministic engine owns all the f
 runways, procedures, sequencing, and now *live traffic*), and a small local AI only turns what you say
 into the closest valid pilot request.
 
-### New in 0.3.0
+### New in 0.2.5
 
 - **Free-flow conversational ATC** — say a natural, compound request in one transmission and the
   controller answers each part, in order, with correct phraseology:
@@ -23,6 +23,11 @@ into the closest valid pilot request.
 - **Cleaner install** — the app installs as **`Air Traffic Control.exe`** and reliably shows up when
   you press the **Windows key** and type "Air Traffic Control" (proper Start Menu + desktop entry).
 
+### Fixed in 0.2.5
+- **SimBrief username / Pilot ID now save automatically.** Previously you had to click the
+  "Save connection & AI" button, which was easy to miss — entering your ID and closing the window lost
+  it. Connection settings now persist the moment you click away from the field.
+
 ### Recently (0.2.x)
 - Custom ATC model (`myaimodels/atc-nlu`), 3D-globe flight dashboard, approach vectoring + readback
   compliance, reactive ATC, VFR/pattern/emergencies/holds, real taxi routing, frequency awareness,
@@ -31,7 +36,7 @@ into the closest valid pilot request.
 
 ## Install
 
-1. Download **`Air-Traffic-Control-Setup-0.3.0.exe`** below and run it.
+1. Download **`Air-Traffic-Control-Setup-0.2.5.exe`** below and run it.
 2. The first-run **wizard** installs/finds [Ollama](https://ollama.com), pulls the AI model, and writes
    your config.
 3. Start a flight in MSFS, launch the app, and call ATC.
@@ -47,8 +52,9 @@ into the closest valid pilot request.
 The app can pull your latest SimBrief OFP automatically (route, cruise, runways, weights, the full
 briefing on the dashboard). To connect it:
 
-1. Open the app's **Settings** (gear), find **SimBrief username**, and enter your SimBrief account
-   username — *or* your numeric **SimBrief Pilot ID** (used first if both are set). Save.
+1. Open the **SETUP** tab, find **SimBrief username**, and enter your SimBrief account username — *or*
+   your numeric **SimBrief Pilot ID** (used first if both are set). It saves automatically when you
+   click away from the field (you'll see "Saved ✓").
 2. On [simbrief.com](https://www.simbrief.com), **generate/dispatch a flight** as usual.
 3. Launch (or restart) the app — it fetches your **most recent** OFP for that username and uses it as
    the active flight plan. The raw OFP is viewable per-flight on the dashboard

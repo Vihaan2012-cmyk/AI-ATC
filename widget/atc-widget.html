@@ -320,6 +320,7 @@
             <div class="row"><label>SimBrief username</label><input type="text" id="cfgSimbrief" placeholder="your SimBrief username" /></div>
             <div class="row"><label>SimBrief Pilot ID <span class="hint" style="color:#7e93a8;font-weight:400;">(used first if set)</span></label><input type="text" id="cfgSimbriefId" placeholder="numeric SimBrief ID" /></div>
             <div class="row"><label>Hoppie ACARS logon code</label><input type="password" id="cfgHoppie" placeholder="optional" /></div>
+            <div class="note" id="connSaved" style="color:#74e6c2;min-height:14px;">Changes save automatically when you click away.</div>
           </div>
           <div class="sect">
             <h3>AI model</h3>
@@ -865,13 +866,24 @@ $('saveAppe').addEventListener('click',function(){
 function saveVoiceCfg(){
   if(EL){ EL.getSettings().then(function(v){ v.voicePiper = voiceCfg.piper; EL.saveSettings(v); }); }
 }
-$('saveConn').addEventListener('click',function(){
+function buildConnCfg(){
   var provider=$('cfgProvider').value;
   var cfg={ SIMBRIEF_USERNAME:$('cfgSimbrief').value.trim(), SIMBRIEF_USERID:$('cfgSimbriefId').value.trim(), HOPPIE_LOGON:$('cfgHoppie').value.trim(), LLM_PROVIDER:provider, LLM_DEVICE:$('cfgDevice').value };
   if(provider==='ollama') cfg.OLLAMA_MODEL=$('cfgModel').value.trim(); else cfg.LLM_MODEL=$('cfgModel').value.trim();
-  if(EL){ EL.saveConfig(cfg).then(function(){ entry('sys','','','Saved. Restart the brain to apply.'); var t=document.querySelector('.tab[data-v="comms"]'); if(t)t.click(); }); }
+  return cfg;
+}
+$('saveConn').addEventListener('click',function(){
+  if(EL){ EL.saveConfig(buildConnCfg()).then(function(){ entry('sys','','','Saved. Restart the brain to apply.'); var t=document.querySelector('.tab[data-v="comms"]'); if(t)t.click(); }); }
   else entry('sys','','','Config editing requires the desktop app.');
 });
+// Auto-save the connection fields when you leave them, so you don't have to remember the button.
+// Quiet: persists in the background and shows a small inline confirmation, no tab jump.
+var connAutoIds=['cfgSimbrief','cfgSimbriefId','cfgHoppie','cfgProvider','cfgModel','cfgDevice'];
+function autoSaveConn(){
+  if(!EL) return;
+  EL.saveConfig(buildConnCfg()).then(function(){ if($('connSaved')) $('connSaved').textContent='Saved ✓ (restart brain to apply)'; });
+}
+connAutoIds.forEach(function(id){ var el=$(id); if(el){ el.addEventListener('change', autoSaveConn); el.addEventListener('blur', autoSaveConn); } });
 $('saveRealism').addEventListener('click',function(){
   var cfg={ ATC_STRICTNESS:$('cfgStrict').value, ATC_CHATTER:$('cfgChatter').value };
   if(EL){ EL.saveConfig(cfg).then(function(){ entry('sys','','','Realism saved. Restart the brain to apply.'); var t=document.querySelector('.tab[data-v="comms"]'); if(t)t.click(); }); }
