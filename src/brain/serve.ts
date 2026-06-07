@@ -16,6 +16,8 @@ async function main() {
     hoppieLogon: config.hoppieLogon,
     chatter: config.chatter,
     statePath: config.sessionStatePath,
+    region: config.region,
+    tone: config.tone,
   });
   console.log('Widget can now connect. Ctrl+C to stop.');
 

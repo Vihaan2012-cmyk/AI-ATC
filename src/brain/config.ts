@@ -67,6 +67,11 @@ export const config = {
   /** Ambient AI radio chatter on frequency: 'off' | 'low' | 'medium' | 'high'. */
   chatter: (process.env.ATC_CHATTER ?? 'low') as 'off' | 'low' | 'medium' | 'high',
 
+  /** Regional phraseology: 'us' | 'uk' | 'euro'. */
+  region: (process.env.ATC_REGION ?? 'us') as 'us' | 'uk' | 'euro',
+  /** Controller tone: 'standard' | 'terse' | 'chatty'. */
+  tone: (process.env.ATC_TONE ?? 'standard') as 'standard' | 'terse' | 'chatty',
+
   /** Hoppie ACARS/CPDLC logon code (optional; enables text datalink). */
   hoppieLogon: process.env.HOPPIE_LOGON ?? '',
 

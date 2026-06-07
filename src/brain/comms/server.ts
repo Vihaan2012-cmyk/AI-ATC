@@ -18,6 +18,7 @@ import { spokenFlightCallsign } from '../util/aircraft.js';
 import { HoppieClient } from './hoppie.js';
 import { ChatterGenerator, type ChatterLevel } from '../atc/chatter.js';
 import { ReactiveMonitor } from '../atc/monitor.js';
+import { applyPhraseology, type PhraseologyProfile } from '../atc/phraseologyProfile.js';
 import { airportCoords } from '../navdata/airports.js';
 import type { ControllerKind } from '../types.js';
 
@@ -98,6 +99,9 @@ export interface CommsDeps {
   chatter?: ChatterLevel;
   /** Path to persist/restore session state across restarts (resume a flight). */
   statePath?: string;
+  /** Regional phraseology + controller tone. */
+  region?: import('../atc/phraseologyProfile.js').Region;
+  tone?: import('../atc/phraseologyProfile.js').Tone;
 }
 
 function fpInfoMessage(fp: FlightPlan, weather: Record<string, MetarInfo>) {
@@ -227,6 +231,11 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
     if (!deps.statePath) return;
     try { mkdirSync(dirname(deps.statePath), { recursive: true }); writeFileSync(deps.statePath, JSON.stringify(deps.session.snapshot())); } catch { /* ignore */ }
   };
+
+  // Regional phraseology + tone — light post-processing of reply text (facts untouched).
+  const profile: PhraseologyProfile = { region: deps.region ?? 'us', tone: deps.tone ?? 'standard' };
+  const phrase = (text: string, expecting: 'readback' | 'none') =>
+    applyPhraseology(text, profile, expecting === 'none');
   const http = createServer((req, res) => {
     const path = (req.url ?? '/').split('?')[0] ?? '/';
     if (req.method === 'GET' && (path === '/' || path === '/atc-widget.html')) {
@@ -346,7 +355,7 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
         }
         try {
           const reply = await deps.session.handle(msg.text.trim());
-          send(ws, { type: 'atc_tx', from: reply.from, freq: reply.freqMhz, text: reply.text, expecting: reply.expecting });
+          send(ws, { type: 'atc_tx', from: reply.from, freq: reply.freqMhz, text: phrase(reply.text, reply.expecting), expecting: reply.expecting });
           send(ws, { type: 'state', activeController: deps.session.activeKind });
           send(ws, { type: 'scorecard', ...deps.session.scorecard });
           autoTune(reply.freqMhz);
