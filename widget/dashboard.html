@@ -139,6 +139,12 @@
         <div id="achievements" style="padding:12px 15px; display:grid; grid-template-columns:repeat(2, 1fr); gap:8px;"></div>
       </div>
       <div class="sect">
+        <h2>Charts</h2>
+        <div id="charts" style="padding:12px 15px; display:flex; flex-direction:column; gap:10px;">
+          <div style="font-size:12px; color:var(--dim);">No active flight.</div>
+        </div>
+      </div>
+      <div class="sect">
         <h2>Top routes</h2>
         <ul class="routes" id="routes"><li class="empty">No flights yet.</li></ul>
       </div>
@@ -258,6 +264,26 @@ function frameFlights(pts){
 
 function gcNm(a,b){ if(!a||!b) return null; var R=3440.065,t=Math.PI/180; var dla=(b[0]-a[0])*t,dlo=(b[1]-a[1])*t; var s=Math.sin(dla/2)**2+Math.cos(a[0]*t)*Math.cos(b[0]*t)*Math.sin(dlo/2)**2; return Math.round(2*R*Math.asin(Math.min(1,Math.sqrt(s)))); }
 function row(l,r){ return '<div class="frow"><span class="l">'+l+'</span><span class="r">'+r+'</span></div>'; }
+function buildChartLinks(origin, destination) {
+  if (!origin || !destination) return null;
+  var o = (origin || '').toUpperCase(), d = (destination || '').toUpperCase();
+  return [
+    { label: 'SkyVector', url: 'https://skyvector.com/?fpl=' + o + '%20' + d },
+    { label: 'OurAirports (orig)', url: 'https://ourairports.com/airports/' + o + '/airport.html' },
+    { label: 'OurAirports (dest)', url: 'https://ourairports.com/airports/' + d + '/airport.html' }
+  ];
+}
+function renderCharts(origin, destination) {
+  var container = $('charts');
+  if (!origin || !destination) {
+    container.innerHTML = '<div style="font-size:12px; color:var(--dim);">No active flight.</div>';
+    return;
+  }
+  var links = buildChartLinks(origin, destination);
+  container.innerHTML = links.map(function(link) {
+    return '<a href="' + link.url + '" target="_blank" style="display:inline-flex; align-items:center; padding:8px 12px; background:rgba(47,182,255,.12); border:1px solid var(--line); border-radius:8px; color:#6f8cff; text-decoration:none; font-size:12px; font-weight:600; transition:background .12s, color .12s; cursor:pointer;" onmouseover="this.style.background=\'rgba(47,182,255,.24)\'; this.style.color=\'#a8c8ff\';" onmouseout="this.style.background=\'rgba(47,182,255,.12)\'; this.style.color=\'#6f8cff\';">↗ ' + esc(link.label) + '</a>';
+  }).join('');
+}
 function fl(ft){ return ft>=18000 ? ('FL'+Math.round(ft/100)) : (ft.toLocaleString()+' ft'); }
 
 var flightById = {};   // id -> full flight object, for the OFP viewer
@@ -385,6 +411,7 @@ function render(d){
     : '<li class="empty">No flights yet.</li>';
   Array.prototype.forEach.call(ru.querySelectorAll('li[data-route]'), function(li){ li.addEventListener('click', function(){ selectRoute(li.dataset.route); }); });
 
+  renderCharts(d.live.origin, d.live.destination);
   flights = d.recent || [];
   var tb = $('recent');
   if(flights.length){
