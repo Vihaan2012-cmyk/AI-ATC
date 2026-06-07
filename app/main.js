@@ -13,9 +13,12 @@ function getPiper() { if (!piper) piper = new Piper(app.getPath('userData')); re
 
 const PACKAGED = app.isPackaged;
 const repoRoot = PACKAGED ? path.join(process.resourcesPath, 'brain') : path.join(__dirname, '..');
-const envPath = path.join(repoRoot, '.env');
-const envExamplePath = path.join(repoRoot, '.env.example');
 const userData = () => app.getPath('userData');
+// When packaged, the install dir (resources/brain) is read-only (e.g. Program Files), so the
+// user's .env MUST live in the writable userData folder — otherwise the wizard re-appears every
+// launch because ensureEnv() can't write it. In dev, keep it next to the source for convenience.
+const envPath = PACKAGED ? path.join(userData(), '.env') : path.join(repoRoot, '.env');
+const envExamplePath = path.join(repoRoot, '.env.example');
 const boundsFile = () => path.join(userData(), 'bounds.json');
 const settingsFile = () => path.join(userData(), 'settings.json');
 const widgetPath = PACKAGED
@@ -45,11 +48,12 @@ function writeEnv(updates) {
   for (const [k, v] of Object.entries(updates)) if (v !== undefined) merged[k] = v;
   const lines = ['# Edited by Air Traffic Control', ''];
   for (const [k, v] of Object.entries(merged)) lines.push(`${k}=${v}`);
-  try { fs.writeFileSync(envPath, lines.join('\n') + '\n'); return true; } catch { return false; }
+  try { fs.mkdirSync(path.dirname(envPath), { recursive: true }); fs.writeFileSync(envPath, lines.join('\n') + '\n'); return true; } catch { return false; }
 }
 function ensureEnv() {
   if (fs.existsSync(envPath)) return;
   try {
+    fs.mkdirSync(path.dirname(envPath), { recursive: true });
     if (fs.existsSync(envExamplePath)) fs.copyFileSync(envExamplePath, envPath);
     else fs.writeFileSync(envPath, 'LLM_PROVIDER=ollama\nOLLAMA_MODEL=myaimodels/atc-nlu\nNAVDATA_SOURCES=sim\n');
   } catch { /* ignore */ }
@@ -86,10 +90,13 @@ let brainProc = null;
 function startBrain() {
   if (brainProc) return;
   try {
+    // The brain reads config from process.env (config.ts). In packaged mode .env lives in
+    // userData (not the brain's cwd), so pass it through explicitly as env vars.
+    const env = { ...process.env, ...readEnv() };
     if (PACKAGED) {
-      brainProc = utilityProcess.fork(path.join(repoRoot, 'dist', 'brain', 'serve.js'), [], { cwd: repoRoot });
+      brainProc = utilityProcess.fork(path.join(repoRoot, 'dist', 'brain', 'serve.js'), [], { cwd: repoRoot, env });
     } else {
-      brainProc = spawn('node', ['--import', 'tsx', 'src/brain/serve.ts'], { cwd: repoRoot, shell: true, windowsHide: true, stdio: 'ignore' });
+      brainProc = spawn('node', ['--import', 'tsx', 'src/brain/serve.ts'], { cwd: repoRoot, shell: true, windowsHide: true, stdio: 'ignore', env });
       brainProc.on('exit', () => { brainProc = null; });
     }
   } catch (e) { console.error('brain spawn failed:', e); }
