@@ -42,6 +42,13 @@
         "to": "widget"
       }
     ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Vihaan2012-cmyk",
+        "repo": "AI-ATC"
+      }
+    ],
     "win": {
       "target": [
         {
