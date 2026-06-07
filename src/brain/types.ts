@@ -109,19 +109,24 @@ export interface PilotIntent {
 
 /** A single enroute request parsed from free-flow speech (one transmission may have several). */
 export type EnrouteRequestType =
-  | 'climb' | 'descend' | 'direct' | 'deviate' | 'speed' | 'hold_at' | 'higher' | 'lower';
+  | 'climb' | 'descend' | 'direct' | 'deviate' | 'speed' | 'hold_at' | 'higher' | 'lower'
+  | 'cross' | 'unable';
 
 export interface EnrouteRequest {
   type: EnrouteRequestType;
-  /** Target altitude in ft (climb/descend). */
+  /** Target altitude in ft (climb/descend, or the crossing altitude for 'cross'). */
   altitudeFt?: number;
-  /** Fix/waypoint for direct-to or hold. */
+  /** Fix/waypoint for direct-to, hold, or a crossing restriction. */
   fix?: string;
   /** Deviation side + degrees (deviate). */
   side?: 'left' | 'right';
   degrees?: number;
   /** Speed in knots (speed). */
   speedKt?: number;
+  /** Crossing restriction relation for 'cross' (default 'at'). */
+  restriction?: 'at' | 'at_or_above' | 'at_or_below';
+  /** True when the pilot asked for the change at their discretion / when ready. */
+  discretionary?: boolean;
 }
 
 /** A built IFR clearance (CRAFT). */

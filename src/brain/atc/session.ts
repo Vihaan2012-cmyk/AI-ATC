@@ -15,7 +15,7 @@ import { spokenFlightCallsign } from '../util/aircraft.js';
 import { shortenAirportName, spokenRunway, parseSpokenAltitudeFt } from '../util/phraseology.js';
 import { buildHold } from './holds.js';
 import { parseEnrouteRequests } from '../llm/freeflow.js';
-import { composeEnrouteReply, assignedAltitude } from './enroute.js';
+import { composeEnrouteReply, assignedAltitude, composeUnableReply } from './enroute.js';
 import { trafficAdvisory, type TrafficPicture } from './liveTraffic.js';
 import { parseMetarDetail, type MetarInfo } from '../sim/weather.js';
 
@@ -134,10 +134,18 @@ export class ControllerSession {
     if (/\b(say|any|request|report)\s+traffic\b|\btraffic\s+(advisor|in sight|call)/i.test(pilotText)) {
       return this.trafficReply();
     }
+    // Pilot "unable" — decline the standing instruction; offer an alternative.
+    if (/\bunable\b/i.test(pilotText) && (this.kind === 'center' || this.kind === 'departure' || this.kind === 'approach')) {
+      return {
+        from: STATION_LABELS[this.kind] ?? 'ATC', freqMhz: this.activeFreqMhz,
+        text: `${this.spokenCs}, ${composeUnableReply(this.lastAssignedAltFt)}.`,
+        expecting: 'none',
+      };
+    }
     // Free-flow enroute requests (deviate/direct/climb/descend/speed) — handled when airborne and
     // talking to an enroute/approach controller, where such requests make sense.
     if (this.kind === 'center' || this.kind === 'departure' || this.kind === 'approach') {
-      const reqs = parseEnrouteRequests(pilotText);
+      const reqs = parseEnrouteRequests(pilotText).filter((r) => r.type !== 'unable');
       if (reqs.length > 0) {
         const ctx = { altitudeFt: this.lastAssignedAltFt ?? undefined, cruiseFt: this.fp.cruiseAltitudeFt };
         const body = composeEnrouteReply(reqs, ctx);

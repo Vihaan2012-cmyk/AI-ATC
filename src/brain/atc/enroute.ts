@@ -28,18 +28,30 @@ export function resolvedAltitude(r: EnrouteRequest, ctx: EnrouteContext): number
 
 /** Compose the response clause for a single request. Returns null if it can't be honored. */
 function clauseFor(r: EnrouteRequest, ctx: EnrouteContext): string | null {
+  // "at pilot's discretion" suffix for discretionary climbs/descents.
+  const disc = r.discretionary ? ' at pilot’s discretion' : '';
   switch (r.type) {
     case 'climb':
-      return r.altitudeFt != null ? `climb and maintain ${spokenAltitude(r.altitudeFt)}` : null;
+      return r.altitudeFt != null
+        ? (r.discretionary ? `climb at pilot’s discretion, maintain ${spokenAltitude(r.altitudeFt)}` : `climb and maintain ${spokenAltitude(r.altitudeFt)}`)
+        : null;
     case 'descend':
-      return r.altitudeFt != null ? `descend and maintain ${spokenAltitude(r.altitudeFt)}` : null;
+      return r.altitudeFt != null
+        ? (r.discretionary ? `descend at pilot’s discretion, maintain ${spokenAltitude(r.altitudeFt)}` : `descend and maintain ${spokenAltitude(r.altitudeFt)}`)
+        : null;
     case 'higher': {
       const tgt = resolvedAltitude(r, ctx)!;
-      return `climb and maintain ${spokenAltitude(tgt)}`;
+      return `climb and maintain ${spokenAltitude(tgt)}${disc}`;
     }
     case 'lower': {
       const tgt = resolvedAltitude(r, ctx)!;
-      return `descend and maintain ${spokenAltitude(tgt)}`;
+      return `descend and maintain ${spokenAltitude(tgt)}${disc}`;
+    }
+    case 'cross': {
+      if (!r.fix || r.altitudeFt == null) return null;
+      const rel = r.restriction === 'at_or_above' ? 'at or above '
+        : r.restriction === 'at_or_below' ? 'at or below ' : 'at ';
+      return `cross ${r.fix} ${rel}${spokenAltitude(r.altitudeFt)}`;
     }
     case 'direct':
       return r.fix ? `cleared direct ${r.fix}` : null;
@@ -54,6 +66,17 @@ function clauseFor(r: EnrouteRequest, ctx: EnrouteContext): string | null {
     default:
       return null;
   }
+}
+
+/**
+ * Compose ATC's response to a pilot "unable". Given the last assigned altitude (if any), offer a
+ * sensible alternative: hold present altitude and expect the change later. Deterministic.
+ */
+export function composeUnableReply(lastAssignedAltFt: number | null): string {
+  if (lastAssignedAltFt != null) {
+    return `roger, maintain ${spokenAltitude(lastAssignedAltFt)}, expect higher in one zero miles`;
+  }
+  return 'roger, maintain present altitude, advise when able';
 }
 
 /** Items the pilot must read back, derived from the honored requests (for compliance). */

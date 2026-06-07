@@ -66,6 +66,26 @@ export function parseEnrouteRequests(text: string): EnrouteRequest[] {
     if (!clause) continue;
     const t = ' ' + clause.toLowerCase().replace(/\s+/g, ' ') + ' ';
 
+    // "unable" — pilot declines the last/standing instruction; engine offers an alternative.
+    if (/\bunable\b/.test(t)) { add({ type: 'unable' }); }
+
+    // Pilot's discretion / when ready — a climb or descend done at the pilot's leisure.
+    const discretionary = /at (my|pilot'?s) discretion|when ready|at your discretion/.test(t);
+
+    // Crossing restriction: "cross DUMBA at/at or above/at or below FL240 / 10000".
+    const cross = clause.match(/\bcross(?:ing)? ([A-Za-z]{2,5})\b/i);
+    if (cross) {
+      const f = (cross[1] ?? '').toUpperCase();
+      if (f && !['THE', 'AT', 'OVER'].includes(f)) {
+        const alt = parseAltitude(t);
+        if (alt != null) {
+          const restriction = /at or above|or above|above/.test(t) ? 'at_or_above'
+            : /at or below|or below|below/.test(t) ? 'at_or_below' : 'at';
+          add({ type: 'cross', fix: f, altitudeFt: alt, restriction });
+        }
+      }
+    }
+
     // direct to <FIX>  (preserve original case for the fix ident)
     const direct = clause.match(/\bdirect (?:to )?([A-Za-z]{2,5})\b/i);
     if (direct) { const f = (direct[1] ?? '').toUpperCase(); if (f && !['THE', 'TO', 'FOR'].includes(f)) add({ type: 'direct', fix: f }); }
@@ -81,16 +101,16 @@ export function parseEnrouteRequests(text: string): EnrouteRequest[] {
       if (side) add({ type: 'deviate', side, degrees: parseDegrees(t) });
     }
 
-    // climb / higher
-    if (/\bclimb\b/.test(t) || /\bhigher\b/.test(t)) {
+    // climb / higher (skip if this clause is a crossing restriction — handled above)
+    if ((/\bclimb\b/.test(t) || /\bhigher\b/.test(t)) && !cross) {
       const alt = parseAltitude(t);
-      if (alt != null) add({ type: 'climb', altitudeFt: alt });
+      if (alt != null) add({ type: 'climb', altitudeFt: alt, ...(discretionary ? { discretionary: true } : {}) });
       else if (/\bhigher\b/.test(t)) add({ type: 'higher' });
     }
     // descend / lower
-    if (/\bdescen\w+\b/.test(t) || /\blower\b/.test(t)) {
+    if ((/\bdescen\w+\b/.test(t) || /\blower\b/.test(t)) && !cross) {
       const alt = parseAltitude(t);
-      if (alt != null) add({ type: 'descend', altitudeFt: alt });
+      if (alt != null) add({ type: 'descend', altitudeFt: alt, ...(discretionary ? { discretionary: true } : {}) });
       else if (/\blower\b/.test(t)) add({ type: 'lower' });
     }
 
