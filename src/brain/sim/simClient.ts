@@ -44,6 +44,9 @@ export interface ParkingSpot {
   name: string;
   /** Parking kind: GATE / RAMP / DOCK / etc. */
   kind: string;
+  /** Position (degrees), for plotting / nearest-gate. */
+  lat?: number;
+  lon?: number;
 }
 
 export interface GroundLayout {
@@ -284,6 +287,9 @@ export class SimClient {
   }
 
   // Separate, isolated definition for the ground layout (parking + taxiway names).
+  // Field order/types MUST match the MSFS SDK TAXI_PARKING node exactly, else reads run off the
+  // end of the buffer. We request a contiguous prefix of the documented fields and stop after the
+  // ones we need (NAME, SUFFIX, NUMBER, then position) — all INT32 except LAT/LON (FLOAT64).
   private defineParking(): void {
     const h = this.handle!;
     const f = (field: string) => h.addToFacilityDefinition(PARKING_DEF, field);
@@ -292,7 +298,11 @@ export class SimClient {
     f('NAME');
     f('CLOSE TAXI_NAME');
     f('OPEN TAXI_PARKING');
-    f('NAME'); f('SUFFIX'); f('NUMBER'); f('TYPE');
+    // SDK order: TYPE, TAXI_POINT_TYPE, NAME, SUFFIX, NUMBER, ORIENTATION, HEADING, RADIUS,
+    // BIAS_X, BIAS_Z, LATITUDE, LONGITUDE, ALTITUDE, N_AIRLINES ...
+    f('TYPE'); f('TAXI_POINT_TYPE'); f('NAME'); f('SUFFIX'); f('NUMBER');
+    f('ORIENTATION'); f('HEADING'); f('RADIUS'); f('BIAS_X'); f('BIAS_Z');
+    f('LATITUDE'); f('LONGITUDE');
     f('CLOSE TAXI_PARKING');
     f('CLOSE AIRPORT');
   }
@@ -358,15 +368,25 @@ export class SimClient {
       if (type === FacilityDataType.TAXI_NAME) {
         g.taxiNames.push(b.readString8().trim());
       } else if (type === FacilityDataType.TAXI_PARKING) {
-        const nameIdx = b.readInt32();
-        const suffix = b.readString8().trim();
-        const number = b.readInt32();
-        const typeIdx = b.readInt32();
+        // Read in exact SDK order (see defineParking).
+        const typeIdx = b.readInt32();        // TYPE (parking type enum)
+        b.readInt32();                        // TAXI_POINT_TYPE (unused)
+        const nameIdx = b.readInt32();        // NAME (parking name enum)
+        const suffixCode = b.readInt32();     // SUFFIX (char code, e.g. 65='A')
+        const number = b.readInt32();         // NUMBER
+        b.readInt32();                        // ORIENTATION (unused)
+        b.readFloat32();                      // HEADING
+        b.readFloat32();                      // RADIUS
+        b.readFloat32();                      // BIAS_X
+        b.readFloat32();                      // BIAS_Z
+        const lat = b.readFloat64();          // LATITUDE
+        const lon = b.readFloat64();          // LONGITUDE
+        const suffix = suffixCode >= 32 && suffixCode < 127 ? String.fromCharCode(suffixCode).trim() : '';
         const group = PARKING_NAME[nameIdx] ?? 'PARKING';
         const kind = (PARKING_TYPE[typeIdx] ?? 'RAMP').startsWith('GATE') ? 'GATE'
           : (PARKING_TYPE[typeIdx] ?? '').includes('CARGO') ? 'CARGO' : 'RAMP';
         const label = friendlyParking(group, suffix, number, kind);
-        if (label) g.acc.parking.push({ name: label, kind });
+        if (label) g.acc.parking.push({ name: label, kind, lat, lon });
       }
       // AIRPORT record carries no fields we need here (we didn't request any).
     } catch {
