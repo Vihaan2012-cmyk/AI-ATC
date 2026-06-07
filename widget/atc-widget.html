@@ -357,6 +357,8 @@
             <div class="row toggle"><input type="checkbox" id="setVoice" /><label style="margin:0;">Speak ATC out loud (radio voice)</label></div>
             <div class="row inline"><label style="margin:0;min-width:84px;">Speed</label><input type="range" id="setVoiceRate" min="0.7" max="1.6" step="0.05" /></div>
             <div class="row inline"><label style="margin:0;min-width:84px;">Volume</label><input type="range" id="setVoiceVol" min="0" max="1" step="0.05" /></div>
+            <div class="row toggle"><input type="checkbox" id="setClicks" /><label style="margin:0;">Radio mic clicks (subtle key up/down)</label></div>
+            <div class="row toggle"><input type="checkbox" id="setAmbience" /><label style="margin:0;">Background radio-room ambience (very quiet)</label></div>
             <div class="row toggle" id="piperRow" style="display:none;"><input type="checkbox" id="setPiper" /><label style="margin:0;">Use Piper HD neural voices (download below)</label></div>
             <div id="piperPanel" style="display:none;">
               <button class="btn" id="piperInstall" style="background:#18283a;color:#cfe0f2;">Install Piper engine</button>
@@ -402,7 +404,7 @@ var STATION={delivery:'Clearance Delivery',ground:'Ground',tower:'Tower',departu
 var logEl=$('log');
 
 // ---- voice (offline system TTS, distinct voice per controller) ----
-var voiceCfg = { enabled:false, rate:1.05, vol:1, piper:false };
+var voiceCfg = { enabled:false, rate:1.05, vol:1, piper:false, clicks:false, ambience:false };
 var curKind = 'delivery';
 var sysVoices = [];
 function loadVoices(){ try{ sysVoices = window.speechSynthesis ? speechSynthesis.getVoices() : []; }catch(e){} }
@@ -413,6 +415,36 @@ var actx=null;
 function ensureCtx(){ var AC=window.AudioContext||window.webkitAudioContext; if(!AC) return null; if(!actx) actx=new AC(); if(actx.state==='suspended') actx.resume(); return actx; }
 // Squelch tone removed — it sounded harsh ("microwave beep"). No-op kept so callers don't break.
 function squelch(){}
+// Subtle radio "click" — a very short, quiet filtered noise burst (mic key up/down), NOT a tone.
+// Off unless voiceCfg.clicks is on. Gentle by design so it never earrapes.
+function radioClick(){
+  if(!voiceCfg.clicks) return;
+  try{
+    var c=ensureCtx(); if(!c) return;
+    var t=c.currentTime, dur=0.035;
+    var n=Math.floor(c.sampleRate*dur), buf=c.createBuffer(1,n,c.sampleRate), d=buf.getChannelData(0);
+    for(var i=0;i<n;i++){ d[i]=(Math.sin(i*0.7)+ (i%7===0?0.5:-0.3))*0.5*(1-i/n); } // cheap deterministic-ish noise, decaying
+    var src=c.createBufferSource(); src.buffer=buf;
+    var bp=c.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=1800; bp.Q.value=0.7;
+    var g=c.createGain(); g.gain.value=0.06; // quiet
+    src.connect(bp); bp.connect(g); g.connect(c.destination); src.start(t); src.stop(t+dur);
+  }catch(e){}
+}
+// Ambient cockpit/radio hum loop (off by default). Started/stopped via setAmbience().
+var ambNode=null;
+function setAmbience(on){
+  try{
+    var c=ensureCtx(); if(!c) return;
+    if(on && !ambNode){
+      var o=c.createOscillator(), g=c.createGain(), lp=c.createBiquadFilter();
+      o.type='sine'; o.frequency.value=70; lp.type='lowpass'; lp.frequency.value=200; g.gain.value=0.015; // barely audible
+      o.connect(lp); lp.connect(g); g.connect(c.destination); o.start();
+      ambNode={o:o,g:g};
+    } else if(!on && ambNode){
+      try{ ambNode.o.stop(); }catch(e){} ambNode=null;
+    }
+  }catch(e){}
+}
 
 /* ---- Piper HD voices (Electron only) ---- */
 var PIPER = (typeof window!=='undefined' && window.atcVoice) ? window.atcVoice : null;
@@ -462,12 +494,15 @@ function speakSystem(text, kind){
     speechSynthesis.speak(u);
   }catch(e){}
 }
+var lastSpoken=null; // {text,kind} for "say again" replay
 function speak(text, kind){
-  if(!voiceCfg.enabled || !text) return;
+  if(!text) return;
+  lastSpoken={text:text, kind:kind||curKind};
+  if(!voiceCfg.enabled) return;
+  radioClick();
   if(piperReady()){
     var key=piperCast(kind||curKind);
     if(key){
-      squelch();
       PIPER.synth(text, key).then(function(r){
         if(r && r.ok && r.wav){ playWav(r.wav); }
         else { speakSystem(text, kind); } // fall back if synth failed
@@ -476,6 +511,15 @@ function speak(text, kind){
     }
   }
   speakSystem(text, kind);
+}
+// Replay the last ATC transmission (for "say again"). Slows it slightly for clarity.
+function sayAgain(){
+  if(!lastSpoken) return;
+  var prevRate=voiceCfg.rate; voiceCfg.rate=Math.max(0.8,(voiceCfg.rate||1.05)-0.2);
+  var was=voiceCfg.enabled; voiceCfg.enabled=true;
+  var t=lastSpoken.text, k=lastSpoken.kind;
+  speak(t,k);
+  voiceCfg.rate=prevRate; voiceCfg.enabled=was;
 }
 
 /* ---- Piper setup UI ---- */
@@ -576,7 +620,8 @@ function setStatus(s){
 }
 function setQuick(items){
   var c=$('quick'); c.innerHTML='';
-  items.forEach(function(it){ var b=document.createElement('button'); b.className='q'; b.textContent=it.label; b.addEventListener('click',function(){ sendText(it.send); }); c.appendChild(b); });
+  items.forEach(function(it){ var b=document.createElement('button'); b.className='q'; b.textContent=it.label;
+    b.addEventListener('click',function(){ if(it.action==='sayagain'){ sayAgain(); } else { sendText(it.send); } }); c.appendChild(b); });
 }
 function defaultQuick(){
   var dest=(flight&&flight.destination)?flight.destination:'destination';
@@ -585,7 +630,8 @@ function defaultQuick(){
     {label:'Pushback',send:'Ground, request pushback.'},
     {label:'Taxi',send:'Ground, request taxi.'},
     {label:'Ready for departure',send:'Tower, holding short, ready for departure.'},
-    {label:'Say traffic',send:'Say traffic.'}
+    {label:'Say traffic',send:'Say traffic.'},
+    {label:'Say again',action:'sayagain'}
   ]);
 }
 function sendText(text){
@@ -850,7 +896,10 @@ function loadSetup(){
     $('setAccent').value=s.accent; $('setOpacity').value=s.opacity; $('setFont').value=s.fontScale; $('setPin').checked=!!s.alwaysOnTop;
     $('setVoice').checked = s.voiceEnabled!==false; $('setVoiceRate').value = s.voiceRate||1.05; $('setVoiceVol').value = (s.voiceVol!=null?s.voiceVol:1);
     if($('setPiper')) $('setPiper').checked = !!s.voicePiper;
-    voiceCfg = { enabled: s.voiceEnabled!==false, rate: parseFloat(s.voiceRate)||1.05, vol: (s.voiceVol!=null?parseFloat(s.voiceVol):1), piper: !!s.voicePiper };
+    voiceCfg = { enabled: s.voiceEnabled!==false, rate: parseFloat(s.voiceRate)||1.05, vol: (s.voiceVol!=null?parseFloat(s.voiceVol):1), piper: !!s.voicePiper, clicks: !!s.voiceClicks, ambience: !!s.voiceAmbience };
+    if($('setClicks')) $('setClicks').checked = !!s.voiceClicks;
+    if($('setAmbience')) $('setAmbience').checked = !!s.voiceAmbience;
+    setAmbience(voiceCfg.ambience);
     applyAppearance(s);
   }
   if(EL){ EL.getSettings().then(function(v){ s=v; fill(); }); } else { try{ s=JSON.parse(localStorage.getItem('atc.appe')||'{}'); s=Object.assign({accent:'#6f8cff',opacity:1,fontScale:1,alwaysOnTop:true},s);}catch(e){} fill(); }
@@ -861,14 +910,19 @@ function loadSetup(){
 $('saveAppe').addEventListener('click',function(){
   var s={ accent:$('setAccent').value, opacity:parseFloat($('setOpacity').value), fontScale:parseFloat($('setFont').value), alwaysOnTop:$('setPin').checked,
     voiceEnabled:$('setVoice').checked, voiceRate:parseFloat($('setVoiceRate').value), voiceVol:parseFloat($('setVoiceVol').value),
-    voicePiper: $('setPiper') ? $('setPiper').checked : false };
+    voicePiper: $('setPiper') ? $('setPiper').checked : false,
+    voiceClicks: $('setClicks') ? $('setClicks').checked : false,
+    voiceAmbience: $('setAmbience') ? $('setAmbience').checked : false };
   applyAppearance(s);
-  voiceCfg = { enabled:s.voiceEnabled, rate:s.voiceRate, vol:s.voiceVol, piper:s.voicePiper };
+  voiceCfg = { enabled:s.voiceEnabled, rate:s.voiceRate, vol:s.voiceVol, piper:s.voicePiper, clicks:s.voiceClicks, ambience:s.voiceAmbience };
+  setAmbience(voiceCfg.ambience);
   if(EL) EL.saveSettings(s); else localStorage.setItem('atc.appe', JSON.stringify(s));
 });
+if($('setClicks')) $('setClicks').addEventListener('change',function(){ voiceCfg.clicks=this.checked; saveVoiceCfg(); if(this.checked) radioClick(); });
+if($('setAmbience')) $('setAmbience').addEventListener('change',function(){ voiceCfg.ambience=this.checked; setAmbience(this.checked); saveVoiceCfg(); });
 // Persist just the Piper toggle immediately (without requiring "Save appearance").
 function saveVoiceCfg(){
-  if(EL){ EL.getSettings().then(function(v){ v.voicePiper = voiceCfg.piper; EL.saveSettings(v); }); }
+  if(EL){ EL.getSettings().then(function(v){ v.voicePiper = voiceCfg.piper; v.voiceClicks = voiceCfg.clicks; v.voiceAmbience = voiceCfg.ambience; EL.saveSettings(v); }); }
 }
 function buildConnCfg(){
   var provider=$('cfgProvider').value;
