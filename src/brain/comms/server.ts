@@ -22,6 +22,7 @@ import { isBlocked, blockedPhrase } from '../atc/blocked.js';
 import { buildFreqCard } from '../atc/freqCard.js';
 import { SCENARIOS } from '../atc/scenarios.js';
 import { pickTone } from '../atc/personality.js';
+import { suggestCruiseAltitude } from '../sim/winds.js';
 import { ReactiveMonitor } from '../atc/monitor.js';
 import { buildTrafficPicture, type TrafficPicture } from '../atc/liveTraffic.js';
 import { applyPhraseology, type PhraseologyProfile } from '../atc/phraseologyProfile.js';
@@ -352,6 +353,14 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
     if (req.method === 'GET' && path === '/api/scenarios') {
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store', 'access-control-allow-origin': '*' });
       res.end(JSON.stringify(SCENARIOS));
+      return;
+    }
+    // Hemispheric cruise-altitude suggestion from the live heading + planned cruise.
+    if (req.method === 'GET' && path === '/api/winds') {
+      const hdg = lastPos?.hdg ?? 0;
+      const suggested = suggestCruiseAltitude(hdg, deps.fp.cruiseAltitudeFt);
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store', 'access-control-allow-origin': '*' });
+      res.end(JSON.stringify({ headingDeg: Math.round(hdg), planned: deps.fp.cruiseAltitudeFt, suggested, direction: (hdg >= 45 && hdg < 225) ? 'eastbound' : 'westbound' }));
       return;
     }
     res.writeHead(404);
