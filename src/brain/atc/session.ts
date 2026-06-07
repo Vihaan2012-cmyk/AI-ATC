@@ -147,7 +147,9 @@ export class ControllerSession {
     if (this.kind === 'center' || this.kind === 'departure' || this.kind === 'approach') {
       const reqs = parseEnrouteRequests(pilotText).filter((r) => r.type !== 'unable');
       if (reqs.length > 0) {
-        const ctx = { altitudeFt: this.lastAssignedAltFt ?? undefined, cruiseFt: this.fp.cruiseAltitudeFt };
+        const now = new Date();
+        const nowMin = now.getUTCHours() * 60 + now.getUTCMinutes();
+        const ctx = { altitudeFt: this.lastAssignedAltFt ?? undefined, cruiseFt: this.fp.cruiseAltitudeFt, nowUtcMinutes: nowMin };
         const body = composeEnrouteReply(reqs, ctx);
         if (body) {
           const alt = assignedAltitude(reqs, ctx);

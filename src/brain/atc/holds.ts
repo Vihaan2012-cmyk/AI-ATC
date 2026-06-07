@@ -13,6 +13,17 @@ export interface HoldInstruction {
 function pad(n: number): string { return String(n).padStart(2, '0'); }
 
 /**
+ * Compute EFC time as "HHMM" Zulu from a UTC minute offset.
+ * `nowUtcMinutes` is the current time in UTC minutes since 00:00.
+ * `minutesAhead` (default 15) is how far in the future the EFC should be.
+ */
+export function computeEfcZulu(nowUtcMinutes: number, minutesAhead = 15): string {
+  const efcMin = (nowUtcMinutes + minutesAhead) % (24 * 60);
+  const hh = Math.floor(efcMin / 60), mm = efcMin % 60;
+  return `${pad(hh)}${pad(mm)}`;
+}
+
+/**
  * Build a hold at the next waypoint (or destination) with an EFC `minutesAhead` from `nowUtc`.
  * `nowUtc` is passed in so callers control the clock (the brain uses real time).
  */
@@ -28,9 +39,7 @@ export function buildHold(fp: FlightPlan, nowUtcMinutes: number, minutesAhead = 
   const radial = (seed % 36) * 10 || 360;
   const leg = seed % 3 === 0 ? 'one zero mile legs' : 'standard turns';
 
-  const efcMin = (nowUtcMinutes + minutesAhead) % (24 * 60);
-  const hh = Math.floor(efcMin / 60), mm = efcMin % 60;
-  const efcZulu = `${pad(hh)}${pad(mm)}`;
+  const efcZulu = computeEfcZulu(nowUtcMinutes, minutesAhead);
 
   const text = `hold ${turns} of ${wp} on the ${spokenDigits(String(radial).padStart(3, '0'))} radial, `
     + `${turns} turns, ${leg}. Expect further clearance at ${spokenDigits(efcZulu)} Zulu.`;

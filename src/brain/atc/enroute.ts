@@ -2,6 +2,7 @@
 // addresses each, in order, with proper phraseology. Deterministic — the engine decides what to
 // approve (e.g. won't clear you below a sane floor) and composes the wording.
 import { spokenAltitude, spokenDigits } from '../util/phraseology.js';
+import { computeEfcZulu } from './holds.js';
 import type { EnrouteRequest } from '../types.js';
 
 export interface EnrouteContext {
@@ -9,6 +10,8 @@ export interface EnrouteContext {
   altitudeFt?: number;
   /** Cruise altitude (ft), used as the ceiling for "higher". */
   cruiseFt?: number;
+  /** Current UTC time in minutes since 00:00, for EFC computation. If omitted, no EFC is appended. */
+  nowUtcMinutes?: number;
 }
 
 /** Resolve the concrete target altitude (ft) a request maps to, given context. */
@@ -61,8 +64,14 @@ function clauseFor(r: EnrouteRequest, ctx: EnrouteContext): string | null {
     }
     case 'speed':
       return r.speedKt != null ? `maintain ${r.speedKt} knots` : null;
-    case 'hold_at':
-      return r.fix ? `hold at ${r.fix} as published, expect further clearance shortly` : null;
+    case 'hold_at': {
+      if (!r.fix) return null;
+      if (ctx.nowUtcMinutes != null) {
+        const efc = computeEfcZulu(ctx.nowUtcMinutes);
+        return `hold at ${r.fix} as published, expect further clearance at ${spokenDigits(efc)} Zulu`;
+      }
+      return `hold at ${r.fix} as published, expect further clearance shortly`;
+    }
     default:
       return null;
   }
