@@ -38,3 +38,4 @@ app/el.err.txt
 training/data/
 training/out/
 .venv/
+launch-dev.cmd
