@@ -56,6 +56,31 @@ export class ApproachControl {
   }
 
   async handle(pilotText: string): Promise<Reply> {
+    // Go-around / missed approach takes priority — re-sequence the arrival.
+    if (/go.?around|going around|missed approach/i.test(pilotText)) {
+      this.step = 'descend';
+      this.pendingItems = readbackItems({});
+      return this.reply('roger, going around. Climb and maintain three thousand, fly runway heading, expect vectors for re-sequence.', 'none', []);
+    }
+    // Field/airport in sight -> clear the visual approach.
+    if (/\b(field|airport|runway)\s+in sight\b/i.test(pilotText)) {
+      this.step = 'done';
+      this.pendingItems = readbackItems({});
+      const rwy = this.runway ? `runway ${spokenRunway(this.runway)}` : 'the active runway';
+      const twr = this.towerFreq ? ` Contact tower on ${spokenFreq(this.towerFreq)}.` : '';
+      return { from: this.stationLabel, freqMhz: this.freq, text: `${this.spokenCs}, cleared visual approach ${rwy}.${twr}`, expecting: 'none', handoff: 'tower' };
+    }
+    // Circle-to-land / sidestep requests.
+    if (/circle to land|circling approach/i.test(pilotText)) {
+      this.step = 'done';
+      this.pendingItems = readbackItems({});
+      const rwy = this.runway ? `runway ${spokenRunway(this.runway)}` : 'the active runway';
+      return { from: this.stationLabel, freqMhz: this.freq, text: `${this.spokenCs}, cleared for the approach, circle to land ${rwy}.`, expecting: 'readback' };
+    }
+    if (/\bsidestep\b/i.test(pilotText)) {
+      const rwy = this.runway ? `runway ${spokenRunway(this.runway)}` : 'the parallel runway';
+      return { from: this.stationLabel, freqMhz: this.freq, text: `${this.spokenCs}, sidestep ${rwy} approved.`, expecting: 'readback' };
+    }
     // If we're awaiting a readback for the previous vector, validate it first.
     if (this.pendingItems.length > 0) {
       const res = checkReadback(pilotText, this.pendingItems, this.strictness);
