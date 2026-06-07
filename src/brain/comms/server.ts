@@ -114,6 +114,8 @@ export interface CommsDeps {
   liveTraffic?: boolean;
   /** Granular traffic sub-toggles to isolate the crash source (position/poll/advisories). */
   trafficOptions?: { position: boolean; strings: boolean; poll: boolean; advisories: boolean };
+  /** Deep-realism extras (handbacks, expect-clearances, amendments, stuck-mic, multi-intent). */
+  deepRealism?: boolean;
 }
 
 function fpInfoMessage(fp: FlightPlan, weather: Record<string, MetarInfo>) {
@@ -249,6 +251,7 @@ function reportCard(deps: CommsDeps, conformance: number | null) {
 }
 
 export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer {
+  deps.session.setDeepRealism(!!deps.deepRealism);
   // Latest live position sample, for the dashboard's /api/dashboard snapshot.
   let lastPos: { lat: number; lon: number; hdg: number; altFt: number; gsKt: number; onGround: boolean } | null = null;
   let lastPilotTxAt = Date.now(); // for proactive "say intentions" prompts
@@ -423,9 +426,9 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
         }
         try {
           pilotTxCount += 1;
-          // Stuck-mic / blocked transmission: occasionally (rarer than congestion) the call is cut
-          // off and ATC asks you to say again — the request is NOT processed, you must repeat.
-          if (isBlocked(pilotTxCount, deps.chatter ?? 'low') && deps.session.activeKind) {
+          // Stuck-mic / blocked transmission (deep-realism only): occasionally (rarer than
+          // congestion) the call is cut off and ATC asks you to say again — request NOT processed.
+          if (deps.deepRealism && isBlocked(pilotTxCount, deps.chatter ?? 'low') && deps.session.activeKind) {
             send(ws, { type: 'atc_tx', from: STATION_LABEL[deps.session.activeKind] ?? 'ATC', freq: deps.session.activeFreqMhz, text: `${spokenFlightCallsign(deps.fp)}, ${blockedPhrase()}`, expecting: 'none' });
             return;
           }

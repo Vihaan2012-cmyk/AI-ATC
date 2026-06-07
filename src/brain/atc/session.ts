@@ -28,6 +28,7 @@ import { isFormationRequest, composeFormation } from './formation.js';
 import { isProgressiveRequest, composeProgressive, buildProgressiveRoute } from './progressive.js';
 import { normalizeVariants } from '../util/phonetic.js';
 import { expandShorthand } from '../llm/shorthand.js';
+import { shouldRemainFrequency, composeRemain } from './handback.js';
 
 interface Controller {
   handle(pilotText: string): Promise<Reply>;
@@ -110,6 +111,10 @@ export class ControllerSession {
     if (Number.isFinite(deg)) this.lastHeadingDeg = ((deg % 360) + 360) % 360;
   }
   private lastHeadingDeg: number | null = null;
+
+  /** Enable deep-realism extras (handbacks, expect-clearances, amendments). Off by default. */
+  setDeepRealism(on: boolean): void { this.deepRealism = on; }
+  private deepRealism = false;
 
   /** Turn frequency enforcement on/off (e.g. from a realism setting). */
   setEnforceFrequency(on: boolean): void { this.enforceFrequency = on; }
@@ -272,13 +277,21 @@ export class ControllerSession {
     // Each handoff targets a different position than the current one, so this is safe even
     // though ground/tower recur (their second occurrence is reached from approach/tower).
     if (reply.handoff && reply.handoff !== this.kind) {
-      // Surface who/what to contact next for the HUD strip (before switching position).
-      reply.assigned = {
-        ...reply.assigned,
-        nextStation: STATION_LABELS[reply.handoff] ?? reply.handoff,
-        nextFreqMhz: this.freqFor(reply.handoff) ?? reply.assigned?.nextFreqMhz,
-      };
-      this.switchTo(reply.handoff);
+      // Deep-realism: occasionally the controller keeps you ("remain this frequency") instead of
+      // handing off. Deterministic (~20%), seeded by callsign+position so it's stable per handoff.
+      const seed = Math.abs([...(this.fp.callsign + this.kind)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 0));
+      if (this.deepRealism && shouldRemainFrequency(seed)) {
+        reply.text = `${reply.text} ${composeRemain(this.spokenCs, STATION_LABELS[reply.handoff] ?? '')}`.trim();
+        reply.handoff = null; // stay on this position/frequency
+      } else {
+        // Surface who/what to contact next for the HUD strip (before switching position).
+        reply.assigned = {
+          ...reply.assigned,
+          nextStation: STATION_LABELS[reply.handoff] ?? reply.handoff,
+          nextFreqMhz: this.freqFor(reply.handoff) ?? reply.assigned?.nextFreqMhz,
+        };
+        this.switchTo(reply.handoff);
+      }
     }
     this.captureAssignedAltitude(reply.text);
     this.lastFrom = reply.from;

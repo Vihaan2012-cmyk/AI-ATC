@@ -68,6 +68,13 @@ export const config = {
   useLlm: (process.env.USE_LLM ?? 'auto') as 'auto' | 'on' | 'off',
 
   /**
+   * Deep-realism extras (off by default): the more advanced/chatty ATC behaviors —
+   * occasional "remain this frequency" handbacks, "expect" clearances, mid-flight clearance
+   * amendments, blocked/stuck-mic, and multi-intent splitting. Set DEEP_REALISM=1 to opt in.
+   */
+  deepRealism: process.env.DEEP_REALISM === '1' || process.env.DEEP_REALISM === 'true',
+
+  /**
    * Auto-tune COM1 over SimConnect when a controller hands you off.
    *  'swap' = set standby AND make it active (hands-free)   [default]
    *  'standby' = set standby only; you flip it active yourself (more realistic)
