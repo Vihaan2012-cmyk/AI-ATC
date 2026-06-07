@@ -142,6 +142,11 @@
   .gmacro:hover { border-color: var(--accent); }
   .gmacro small { font: 500 9.5px ui-monospace, Consolas, monospace; color: #5f7488; letter-spacing: .3px; }
   .gfoot { padding: 11px 14px; font-size: 10.5px; color: #56697d; }
+  .gscen { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+  .gscen-b { padding: 9px 6px; border: 1px solid #5a2f2a; border-radius: 5px; background: #1c1210; color: #e0a090;
+    font-size: 11px; font-weight: 600; cursor: pointer; transition: all .1s; }
+  .gscen-b:hover { border-color: #d9534f; background: #2a1714; color: #ffd9cf; }
+  .gscen-b:active { transform: scale(.97); }
 
   /* info button + flyout drawer */
   .iconbtn { -webkit-app-region: no-drag; width: 24px; height: 24px; border: 0; border-radius: 6px; background: #18222e; color: #b7c6d6; font-size: 14px; cursor: pointer; }
@@ -284,12 +289,25 @@
           <div class="gsec">
             <div class="gsec-h">Turnaround</div>
             <div class="gmacros">
-              <button class="gmacro" id="g-arrival">Arrival<small>power · stairs · L1 · baggage</small></button>
+              <button class="gmacro" id="g-arrival">Arrival<small>power · stairs · exit 1 · baggage</small></button>
               <button class="gmacro" id="g-departure">Departure<small>fuel · catering · baggage · close</small></button>
             </div>
           </div>
 
-          <div class="gfoot">Stock MSFS services via SimConnect. Voice works too — "request fuel", "open L1".</div>
+          <div class="gsec">
+            <div class="gsec-h" style="color:#e0876b;">Declare emergency</div>
+            <div class="gscen">
+              <button class="gscen-b" data-scn="engine_failure">Engine failure</button>
+              <button class="gscen-b" data-scn="medical">Medical</button>
+              <button class="gscen-b" data-scn="depressurization">Depressurization</button>
+              <button class="gscen-b" data-scn="fuel">Fuel emergency</button>
+              <button class="gscen-b" data-scn="smoke_fire">Smoke / fire</button>
+              <button class="gscen-b" data-scn="control">Control issue</button>
+            </div>
+            <div class="gfoot" style="padding:8px 0 0;">Declares the emergency, squawks 7700, and gets priority handling. Recorded in your logbook.</div>
+          </div>
+
+          <div class="gfoot">Stock MSFS services via SimConnect. Voice works too — "request fuel", "open the main door".</div>
         </div>
       </div>
 
@@ -598,6 +616,15 @@ Array.prototype.forEach.call(document.querySelectorAll('[data-svc]'), function(b
 function runMacro(list){ list.forEach(function(svc,i){ setTimeout(function(){ sendGround(svc); }, i*350); }); }
 if($('g-arrival')) $('g-arrival').addEventListener('click', function(){ runMacro(['power','rampTruck','door','baggage']); entry('sys','','','Arrival services requested.'); });
 if($('g-departure')) $('g-departure').addEventListener('click', function(){ runMacro(['fuel','catering','baggage','door']); entry('sys','','','Departure services requested.'); });
+
+// Emergency scenarios — declare with a confirm (sends scenario, ATC takes priority).
+Array.prototype.forEach.call(document.querySelectorAll('.gscen-b[data-scn]'), function(b){
+  b.addEventListener('click', function(){
+    var name=b.textContent;
+    if(!confirm('Declare '+name+' emergency? ATC will give you priority and you\'ll squawk 7700.')) return;
+    if(ws&&ws.readyState===1){ ws.send(JSON.stringify({type:'scenario', service:b.dataset.scn})); entry('sys','','','Declared: '+name+'.'); var t=document.querySelector('.tab[data-v="comms"]'); if(t)t.click(); }
+  });
+});
 
 // Auto-detect aircraft from the flight plan and render a sensible number of exits.
 // (SimConnect can't report door count, so we estimate from the ICAO type — toggling a

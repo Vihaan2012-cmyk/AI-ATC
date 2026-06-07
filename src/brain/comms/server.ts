@@ -365,6 +365,13 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
           text: ok ? `${spokenFlightCallsign(deps.fp)}, ${GROUND_SVC_SPOKEN[svc] ?? (label + ' requested')}.`
                    : `Ground service unavailable (is MSFS in a flight?)`,
           expecting: 'none' });
+      } else if (msg.type === 'scenario' && typeof msg.service === 'string') {
+        // Declare a non-normal scenario; ATC responds with priority handling. Squawk 7700 too.
+        const reply = deps.session.declareScenario(msg.service);
+        if (deps.sim && (deps.autoTuneCom ?? 'swap') !== 'off') deps.sim.setSquawk('7700');
+        send(ws, { type: 'atc_tx', from: reply.from, freq: reply.freqMhz, text: reply.text, expecting: reply.expecting });
+        send(ws, { type: 'squawk', code: '7700' });
+        send(ws, { type: 'scorecard', ...deps.session.scorecard });
       }
     });
   });

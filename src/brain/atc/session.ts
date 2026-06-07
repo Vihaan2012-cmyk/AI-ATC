@@ -42,6 +42,8 @@ export class ControllerSession {
   private lastAssignedAltFt: number | null = null;
   /** Emergency flow: 0 = none, 1 = declared (asked for souls/fuel), 2 = info given (vectors offered). */
   private emergencyStep = 0;
+  /** Active scenario flavor (engine_failure, medical, etc.), for tailored ATC + the logbook. */
+  private scenario: string | null = null;
   /** Readback scoring: how many readbacks were requested vs. accepted first-try. */
   private readbacksExpected = 0;
   private readbacksCorrect = 0;
@@ -154,12 +156,12 @@ export class ControllerSession {
   }
 
   /** Flight scorecard for the logbook. */
-  get scorecard(): { callsign: string; origin: string; destination: string; readbacksExpected: number; readbacksCorrect: number; readbackAccuracy: number; declaredEmergency: boolean } {
+  get scorecard(): { callsign: string; origin: string; destination: string; readbacksExpected: number; readbacksCorrect: number; readbackAccuracy: number; declaredEmergency: boolean; scenario: string | null } {
     const acc = this.readbacksExpected > 0 ? Math.round((this.readbacksCorrect / this.readbacksExpected) * 100) : 100;
     return {
       callsign: this.fp.callsign, origin: this.fp.origin, destination: this.fp.destination,
       readbacksExpected: this.readbacksExpected, readbacksCorrect: this.readbacksCorrect,
-      readbackAccuracy: acc, declaredEmergency: this.declaredEmergency,
+      readbackAccuracy: acc, declaredEmergency: this.declaredEmergency, scenario: this.scenario,
     };
   }
 
@@ -210,6 +212,26 @@ export class ControllerSession {
     };
   }
 
+  /** Declare a specific non-normal scenario (engine_failure, medical, depressurization, ...). */
+  declareScenario(kind: string): Reply {
+    this.scenario = kind;
+    this.emergencyStep = 0;            // route into the emergency flow with this flavor
+    return this.emergencyReply('');
+  }
+
+  // Scenario-specific opening acknowledgement (after the generic squawk-7700 line).
+  private scenarioAck(): string {
+    switch (this.scenario) {
+      case 'engine_failure': return ' Understood, engine failure. Do you require the longest runway and immediate vectors?';
+      case 'medical': return ' Copy medical emergency. Medical services will meet the aircraft. Say souls on board and nature if able.';
+      case 'depressurization': return ' Roger, depressurization — descend at your discretion to a safe altitude, expedite as required.';
+      case 'fuel': return ' Roger, fuel emergency — you are number one, expect the most direct routing.';
+      case 'smoke_fire': return ' Copy smoke or fire — recommend land as soon as possible; equipment will be standing by.';
+      case 'control': return ' Roger, control difficulty — say controllability and the assistance you need.';
+      default: return '';
+    }
+  }
+
   private emergencyReply(pilotText: string): Reply {
     const from = this.lastFrom === 'ATC' ? (STATION_LABELS[this.kind] ?? 'ATC') : this.lastFrom;
     const freq = this.activeFreqMhz;
@@ -220,7 +242,7 @@ export class ControllerSession {
       this.declaredEmergency = true;
       return {
         from, freqMhz: freq,
-        text: `${this.spokenCs}, roger your emergency. Squawk seven seven zero zero. You have priority — the airspace is yours. Say souls on board, fuel remaining in minutes, and your intentions.`,
+        text: `${this.spokenCs}, roger your emergency. Squawk seven seven zero zero. You have priority — the airspace is yours.${this.scenarioAck()} Say souls on board, fuel remaining in minutes, and your intentions.`,
         expecting: 'none',
       };
     }
