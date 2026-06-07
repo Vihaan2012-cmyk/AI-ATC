@@ -1,4 +1,4 @@
-# AI ATC — v0.2.0
+# AI ATC — v0.2.1
 
 Local **text + voice AI air traffic control** for Microsoft Flight Simulator 2020/2024, in the spirit
 of Beyond ATC. Everything runs on your machine — no cloud, no subscription.
@@ -6,6 +6,13 @@ of Beyond ATC. Everything runs on your machine — no cloud, no subscription.
 It's an **ATC controller, not a chatbot**: a deterministic engine owns all the facts (frequencies,
 runways, procedures, sequencing), and a small local AI only turns what you say into the closest valid
 pilot request. Off-topic input is mapped to the nearest ATC intent or given a "say again."
+
+### Fixed in 0.2.1
+- **Install wizard no longer reappears every launch** — the installed app wrote its config into a
+  read-only folder; it now lives in your writable user data.
+- **Brain no longer crashes when connecting to MSFS** — a taxi-data parsing bug took the engine down
+  right after SimConnect connected (the app would hang on "connecting"). Now crash-safe; taxiway data
+  parses correctly.
 
 ### New in 0.2.0
 - **Custom ATC model** (`myaimodels/atc-nlu`) — fast, purpose-built, now the default
@@ -18,7 +25,7 @@ pilot request. Off-topic input is mapped to the nearest ATC intent or given a "s
 
 ## Install
 
-1. Download **`Air-Traffic-Control-Setup-0.2.0.exe`** below and run it.
+1. Download **`Air-Traffic-Control-Setup-0.2.1.exe`** below and run it.
 2. The first-run **wizard** installs/finds [Ollama](https://ollama.com), pulls the AI model, and writes
    your config.
 3. Start a flight in MSFS, launch the app, and call ATC.
