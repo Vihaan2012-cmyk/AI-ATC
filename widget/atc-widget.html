@@ -387,6 +387,14 @@
             <div class="note">Saved to the brain's .env. Restart the brain to apply.</div>
           </div>
           <div class="sect">
+            <h3>Backup</h3>
+            <div class="note">Export your settings + connection config to a file, or restore from one.</div>
+            <button class="btn" id="cfgExport" style="background:#16273a;color:#cfe0f2;">Export settings…</button>
+            <button class="btn" id="cfgImport" style="background:#16273a;color:#cfe0f2;margin-top:6px;">Import settings…</button>
+            <input type="file" id="cfgImportFile" accept="application/json" style="display:none;" />
+            <div class="note" id="backupNote" style="min-height:14px;"></div>
+          </div>
+          <div class="sect">
             <h3>Setup &amp; tools</h3>
             <button class="btn" id="openWiz" style="background:#18283a;color:#cfe0f2;">Re-run install wizard</button>
             <button class="btn" id="exportLog" style="background:#18283a;color:#cfe0f2;margin-left:8px;">Export transcript</button>
@@ -1075,6 +1083,22 @@ if($('setSearch')) $('setSearch').addEventListener('input',function(){
     sect.style.display = (any||hMatch) ? '' : 'none';
     if(hMatch && h){ sect.querySelectorAll('.row, .note').forEach(function(r){ r.style.display=''; }); }
   });
+});
+// Export / import settings bundle.
+if($('cfgExport')) $('cfgExport').addEventListener('click',function(){
+  if(!(EL&&EL.exportConfig)) return;
+  EL.exportConfig().then(function(bundle){
+    var blob=new Blob([JSON.stringify(bundle,null,2)],{type:'application/json'});
+    var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='atc-settings.json'; a.click();
+    if($('backupNote')) $('backupNote').textContent='Exported atc-settings.json';
+  });
+});
+if($('cfgImport')) $('cfgImport').addEventListener('click',function(){ if($('cfgImportFile')) $('cfgImportFile').click(); });
+if($('cfgImportFile')) $('cfgImportFile').addEventListener('change',function(e){
+  var f=e.target.files&&e.target.files[0]; if(!f||!(EL&&EL.importConfig)) return;
+  var fr=new FileReader();
+  fr.onload=function(){ try{ var b=JSON.parse(fr.result); EL.importConfig(b).then(function(r){ if($('backupNote')) $('backupNote').textContent=(r&&r.ok)?'Imported — restart brain to apply.':'Import failed.'; loadSetup(); }); }catch(err){ if($('backupNote')) $('backupNote').textContent='Invalid file.'; } };
+  fr.readAsText(f);
 });
 if($('restartBrain')) $('restartBrain').addEventListener('click',function(){
   if(!(EL&&EL.restartBrain)){ if($('restartNote')) $('restartNote').textContent='Desktop app only.'; return; }

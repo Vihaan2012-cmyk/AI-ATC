@@ -195,6 +195,22 @@ ipcMain.handle('config:get', () => {
   };
 });
 ipcMain.handle('config:save', (_e, cfg) => writeEnv(cfg));
+// Export all user config (settings.json + .env) as one portable JSON bundle.
+ipcMain.handle('config:export', () => {
+  return { settings: getSettings(), env: readEnv(), version: app.getVersion(), exportedAt: new Date().toISOString() };
+});
+// Import a previously-exported bundle: merge settings + write env. Returns ok.
+ipcMain.handle('config:import', (_e, bundle) => {
+  try {
+    if (bundle && typeof bundle === 'object') {
+      if (bundle.settings && typeof bundle.settings === 'object') {
+        writeJson(settingsFile(), { ...getSettings(), ...bundle.settings });
+      }
+      if (bundle.env && typeof bundle.env === 'object') writeEnv(bundle.env);
+    }
+    return { ok: true };
+  } catch (e) { return { ok: false, error: String(e && e.message || e) }; }
+});
 // Restart the brain so config changes (SimBrief ID, model, etc.) take effect without relaunching
 // the whole app. Stops the current brain, waits briefly for the port to free, then starts fresh.
 ipcMain.handle('brain:restart', async () => {

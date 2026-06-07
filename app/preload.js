@@ -18,6 +18,8 @@ contextBridge.exposeInMainWorld('atcWin', {
   openDashboard: () => ipcRenderer.invoke('open:dashboard'),
   onPtt: (cb) => ipcRenderer.on('ptt:toggle', () => cb()),
   restartBrain: () => ipcRenderer.invoke('brain:restart'),
+  exportConfig: () => ipcRenderer.invoke('config:export'),
+  importConfig: (bundle) => ipcRenderer.invoke('config:import', bundle),
 });
 
 // Piper HD voice API
