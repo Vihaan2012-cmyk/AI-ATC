@@ -22,6 +22,7 @@ import { ReactiveMonitor } from '../atc/monitor.js';
 import { buildTrafficPicture, type TrafficPicture } from '../atc/liveTraffic.js';
 import { applyPhraseology, type PhraseologyProfile } from '../atc/phraseologyProfile.js';
 import { airportCoords } from '../navdata/airports.js';
+import { computeAchievements } from '../atc/achievements.js';
 import type { ControllerKind } from '../types.js';
 
 // Short station labels for reactive callouts (by active controller kind).
@@ -314,6 +315,15 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store',
         'access-control-allow-origin': '*' });
       res.end(JSON.stringify(reportCard(deps, lastConformance)));
+      return;
+    }
+    // Achievement badges based on flight statistics.
+    if (req.method === 'GET' && path === '/api/achievements') {
+      const dashData = dashboardData(deps, lastPos);
+      const badges = computeAchievements(dashData.stats);
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store',
+        'access-control-allow-origin': '*' });
+      res.end(JSON.stringify(badges));
       return;
     }
     res.writeHead(404);
