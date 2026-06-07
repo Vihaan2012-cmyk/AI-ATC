@@ -140,6 +140,12 @@ export class ControllerSession {
     // Each handoff targets a different position than the current one, so this is safe even
     // though ground/tower recur (their second occurrence is reached from approach/tower).
     if (reply.handoff && reply.handoff !== this.kind) {
+      // Surface who/what to contact next for the HUD strip (before switching position).
+      reply.assigned = {
+        ...reply.assigned,
+        nextStation: STATION_LABELS[reply.handoff] ?? reply.handoff,
+        nextFreqMhz: this.freqFor(reply.handoff) ?? reply.assigned?.nextFreqMhz,
+      };
       this.switchTo(reply.handoff);
     }
     this.captureAssignedAltitude(reply.text);
