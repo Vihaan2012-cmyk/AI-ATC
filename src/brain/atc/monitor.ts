@@ -4,7 +4,8 @@
 import { spokenAltitude } from '../util/phraseology.js';
 import { distanceNm } from '../util/geo.js';
 import { trafficAdvisory, type TrafficPicture } from './liveTraffic.js';
-import { todDistanceNm, todPhase } from './tod.js';
+import { todPhase } from './tod.js';
+import { todDistanceForType } from './perf.js';
 import type { FlightContext, FlightPlan } from '../types.js';
 
 export interface Advisory {
@@ -126,7 +127,8 @@ export class ReactiveMonitor {
     // 2) Top-of-descent prompt. Compute TOD distance from cruise (3:1 rule) and prompt as the
     // aircraft nears it, only while still up high and not yet descending.
     if (ctx.destDistNm != null && s.altitudeFt > this.fp.cruiseAltitudeFt - 1000 && s.verticalSpeedFpm > -300) {
-      const todNm = todDistanceNm(this.fp.cruiseAltitudeFt, 0);
+      // Aircraft-tuned TOD (descent rate from the type's performance profile), field at sea level.
+      const todNm = todDistanceForType(this.fp.aircraftIcao, this.fp.cruiseAltitudeFt, 0);
       const phase = todPhase(ctx.destDistNm, todNm);
       if (phase === 'approaching') {
         candidates.push({

@@ -21,6 +21,7 @@ import { isCongested, standbyPhrase } from '../atc/congestion.js';
 import { isBlocked, blockedPhrase } from '../atc/blocked.js';
 import { buildFreqCard } from '../atc/freqCard.js';
 import { SCENARIOS } from '../atc/scenarios.js';
+import { pickTone } from '../atc/personality.js';
 import { ReactiveMonitor } from '../atc/monitor.js';
 import { buildTrafficPicture, type TrafficPicture } from '../atc/liveTraffic.js';
 import { applyPhraseology, type PhraseologyProfile } from '../atc/phraseologyProfile.js';
@@ -257,6 +258,7 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
   let lastPilotTxAt = Date.now(); // for proactive "say intentions" prompts
   let pilotTxCount = 0;           // for deterministic frequency-congestion ("stand by")
   let lastConformance: number | null = null; // altitude conformance %, from the monitor
+  let latestTrafficCount = 0;                 // nearby traffic count, for dynamic controller tone
 
   // Resume a flight across an app/brain restart: restore the session if the saved state is the
   // same flight (matched on callsign + route inside restore()).
@@ -274,9 +276,14 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
   };
 
   // Regional phraseology + tone — light post-processing of reply text (facts untouched).
-  const profile: PhraseologyProfile = { region: deps.region ?? 'us', tone: deps.tone ?? 'standard' };
-  const phrase = (text: string, expecting: 'readback' | 'none') =>
-    applyPhraseology(text, profile, expecting === 'none');
+  const baseProfile: PhraseologyProfile = { region: deps.region ?? 'us', tone: deps.tone ?? 'standard' };
+  const phrase = (text: string, expecting: 'readback' | 'none') => {
+    // Deep-realism: controller tone emerges from workload (busy traffic => terse, quiet => chatty).
+    const tone = deps.deepRealism
+      ? pickTone(latestTrafficCount, Date.now() - lastPilotTxAt)
+      : baseProfile.tone;
+    return applyPhraseology(text, { ...baseProfile, tone }, expecting === 'none');
+  };
   const http = createServer((req, res) => {
     const path = (req.url ?? '/').split('?')[0] ?? '/';
     if (req.method === 'GET' && (path === '/' || path === '/atc-widget.html')) {
@@ -527,6 +534,7 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
           lastTrafficPoll = now;
           sim.fetchTraffic().then((list) => {
             trafficPicture = buildTrafficPicture(s, list);
+            latestTrafficCount = trafficPicture.nearby.length;
             deps.session.setTraffic(to.advisories ? trafficPicture : null);
             broadcast({
               type: 'traffic',
