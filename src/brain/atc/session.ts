@@ -441,7 +441,11 @@ export class ControllerSession {
     if (det.vis) parts.push(cap(det.vis) + '.');
     if (det.sky) parts.push(cap(det.sky) + '.');
     if (det.temp) parts.push(cap(det.temp) + '.');
-    if (det.alt) parts.push(`Altimeter ${det.alt}.`);
+    if (det.alt) {
+      // Q-code = hPa (QNH); A-code = inches of mercury. Speak each appropriately.
+      if (det.alt.startsWith('Q')) parts.push(`QNH ${det.alt.slice(1)} hectopascals.`);
+      else parts.push(`Altimeter ${det.alt}.`);
+    }
     if (rwy) parts.push(`Landing and departing runway ${spokenRunway(rwy)}.`);
     if (notam) parts.push(`Notice to air missions: ${notam.text}.`);
     // Time-of-day flavor: night ops note (roughly 0400-1100Z = local night across US).
