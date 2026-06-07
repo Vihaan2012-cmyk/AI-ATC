@@ -56,6 +56,18 @@ export class ReactiveMonitor {
    * `nowMs` is passed in (the brain has a clock; scripts/tests don't use Date.now()).
    */
   evaluate(s: FlightContext, ctx: MonitorContext, nowMs: number): Advisory | null {
+    // Runway incursion: while on the ground and rolling, warn if other ground traffic is very
+    // close (likely on/near the same runway). Runs BEFORE the airborne-only early return below.
+    if (s.onGround && ctx.traffic && s.groundSpeedKt > 15) {
+      const nearGround = ctx.traffic.nearby.find((t) => t.onGround && t.rangeNm <= 0.6);
+      if (nearGround) {
+        const last = this.lastFired.get('incursion') ?? 0;
+        if (nowMs - last >= COOLDOWN_MS) {
+          this.lastFired.set('incursion', nowMs);
+          return { key: 'incursion', text: 'hold position — traffic on the runway, traffic on the runway.' };
+        }
+      }
+    }
     if (s.onGround) return null;
     const candidates: Advisory[] = [];
 
