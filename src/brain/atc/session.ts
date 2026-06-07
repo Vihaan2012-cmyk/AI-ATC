@@ -22,6 +22,12 @@ import { generateNotam, openRunways } from './notam.js';
 import { isExplainRequest, explainInstruction, type LastInstruction } from './explain.js';
 import { ConversationMemory } from '../llm/memory.js';
 import { parseMetarDetail, type MetarInfo } from '../sim/weather.js';
+import { isDiversionRequest, composeDiversion } from './diversion.js';
+import { isSvfrRequest, composeSvfr } from './svfr.js';
+import { isFormationRequest, composeFormation } from './formation.js';
+import { isProgressiveRequest, composeProgressive, buildProgressiveRoute } from './progressive.js';
+import { normalizeVariants } from '../util/phonetic.js';
+import { expandShorthand } from '../llm/shorthand.js';
 
 interface Controller {
   handle(pilotText: string): Promise<Reply>;
@@ -133,7 +139,11 @@ export class ControllerSession {
     return Math.abs(this.com1Mhz - want) < 0.011;
   }
 
-  async handle(pilotText: string): Promise<Reply> {
+  async handle(pilotTextRaw: string): Promise<Reply> {
+    // Pre-process: normalize ATC speech variants ("niner"->"nine", NATO letters) and expand common
+    // pilot shorthand, so downstream detection/parsing sees cleaner text. Additive — original intent
+    // is preserved; this only canonicalizes phrasing.
+    const pilotText = expandShorthand(normalizeVariants(pilotTextRaw));
     // Emergency takes over the session until resolved.
     if (this.emergencyStep > 0 || this.isEmergency(pilotText)) return this.emergencyReply(pilotText);
     if (/\batis\b/i.test(pilotText)) return this.atisReply();
@@ -143,6 +153,31 @@ export class ControllerSession {
     }
     if (/\bhold(ing)?\b|hold as published|enter the hold/i.test(pilotText)) {
       return this.holdReply();
+    }
+    // Diversion to the alternate (pilot-initiated).
+    if (isDiversionRequest(pilotText)) {
+      const alt = this.fp.alternate ?? this.fp.destination;
+      const altName = shortenAirportName(this.nav.getAirport(alt)?.name, alt);
+      return { from: STATION_LABELS[this.kind] ?? this.lastFrom, freqMhz: this.activeFreqMhz, text: composeDiversion(this.spokenCs, altName), expecting: 'readback' };
+    }
+    // Special VFR entry (near a towered field).
+    if (isSvfrRequest(pilotText)) {
+      const field = shortenAirportName(this.nav.getAirport(this.arriving ? this.fp.destination : this.fp.origin)?.name, this.arriving ? this.fp.destination : this.fp.origin);
+      return { from: STATION_LABELS[this.kind] ?? this.lastFrom, freqMhz: this.activeFreqMhz, text: composeSvfr(this.spokenCs, field), expecting: 'readback' };
+    }
+    // Formation / flight-of-two.
+    if (isFormationRequest(pilotText)) {
+      const m = pilotText.toLowerCase().match(/flight of (two|three|four)/);
+      const count = m ? ({ two: 2, three: 3, four: 4 }[m[1]!] ?? 2) : 2;
+      return { from: STATION_LABELS[this.kind] ?? this.lastFrom, freqMhz: this.activeFreqMhz, text: composeFormation(this.spokenCs, count), expecting: 'readback' };
+    }
+    // Progressive taxi (ground).
+    if (isProgressiveRequest(pilotText)) {
+      const apt = this.arriving ? this.fp.destination : this.fp.origin;
+      const taxiways = this.ground[apt]?.taxiways ?? [];
+      const seed = Math.abs([...this.fp.callsign].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 0));
+      const route = buildProgressiveRoute(taxiways, seed, 4);
+      return { from: STATION_LABELS[this.kind] ?? this.lastFrom, freqMhz: this.activeFreqMhz, text: composeProgressive(route, this.spokenCs), expecting: 'readback' };
     }
     // "explain that" -> restate the last instruction in plain English.
     if (isExplainRequest(pilotText)) {

@@ -100,6 +100,26 @@ export function normalizeAtcIdent(text: string): string {
 }
 
 /**
+ * NARROW, non-destructive normalizer for general transmission text. Unlike normalizeAtcSpeech
+ * (which uppercases everything and digitizes numbers — only suitable for idents/squawks), this
+ * ONLY swaps the genuinely non-standard ATC pronunciations to their standard word, preserving
+ * case, punctuation, word order, and ordinary words like "to"/"two". Safe to run on any input.
+ *
+ *   normalizeVariants("descend to niner thousand") -> "descend to nine thousand"
+ *   normalizeVariants("cross at fife thousand, tree miles") -> "cross at five thousand, three miles"
+ */
+export function normalizeVariants(text: string): string {
+  const VARIANTS: Record<string, string> = {
+    niner: 'nine', tree: 'three', fife: 'five', fower: 'four',
+  };
+  return text.replace(/\b(niner|tree|fife|fower)\b/gi, (m) => {
+    const repl = VARIANTS[m.toLowerCase()] ?? m;
+    // Preserve original capitalization of the first letter.
+    return m[0] === m[0]?.toUpperCase() ? repl.charAt(0).toUpperCase() + repl.slice(1) : repl;
+  });
+}
+
+/**
  * Convenience: check if a word is a known ATC digit variant.
  */
 export function isAtcDigitWord(word: string): boolean {
