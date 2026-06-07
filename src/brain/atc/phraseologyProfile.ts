@@ -11,17 +11,26 @@ export interface PhraseologyProfile {
 }
 
 // Region-specific phrase substitutions (applied case-insensitively, word-boundary safe).
+// Merged with the accent lexical swaps (altimeter<->QNH, stand by->standby, circuit/pattern) so
+// there is ONE region processor — never changes factual values (altitudes/freqs/runways).
 const REGION_SWAPS: Record<Region, Array<[RegExp, string]>> = {
-  us: [],
+  us: [
+    [/\bQNH\b/g, 'altimeter'],
+    [/\bthe circuit\b/gi, 'traffic pattern'],
+  ],
   uk: [
     [/\bline up and wait\b/gi, 'line up'],
     [/\bcleared for takeoff\b/gi, 'cleared for take-off'],
     [/\btraffic pattern\b/gi, 'the circuit'],
     [/\bclosed traffic\b/gi, 'the circuit'],
-    [/\bmaintain\b/gi, 'maintain'],
+    [/\baltimeter\b/gi, 'QNH'],
+    [/\bstand by\b/gi, 'standby'],
   ],
   euro: [
     [/\bline up and wait\b/gi, 'line up and wait'],
+    [/\baltimeter\b/gi, 'QNH'],
+    [/\btraffic pattern\b/gi, 'circuit'],
+    [/\bstand by\b/gi, 'standby'],
   ],
 };
 
