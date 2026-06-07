@@ -80,15 +80,21 @@ function parseTraditional(input: string): number | null {
   let result = 0;
   let current = 0;
   let foundScale = false;
+  let prevWasDigit = false;
 
   for (const token of tokens) {
     const lower = token.toLowerCase();
 
     // Digit word
     if (lower in DIGIT_WORD) {
+      // Two bare digit-words in a row ("one zero", "three two") is a digit-by-digit sequence,
+      // not a traditional number — bail so parseDigitSequence handles it ("one zero thousand"=10000).
+      if (prevWasDigit) return null;
       current += DIGIT_WORD[lower]!;
+      prevWasDigit = true;
       continue;
     }
+    prevWasDigit = false;
 
     // Teen word
     if (lower in TEENS) {
