@@ -4,6 +4,7 @@
 import { spokenAltitude } from '../util/phraseology.js';
 import { distanceNm } from '../util/geo.js';
 import { trafficAdvisory, type TrafficPicture } from './liveTraffic.js';
+import { todDistanceNm, todPhase } from './tod.js';
 import type { FlightContext, FlightPlan } from '../types.js';
 
 export interface Advisory {
@@ -32,7 +33,6 @@ export interface MonitorContext {
 
 const COOLDOWN_MS = 60000;       // don't repeat the same callout within a minute
 const ALT_BUST_FT = 350;         // tolerance before "verify your altitude"
-const DESCENT_TRIGGER_NM = 120;  // within this of dest and still at cruise => "start your descent"
 
 const TRAFFIC_ALERT_NM = 8;      // call live traffic when a co-altitude conflict is within this
 
@@ -96,13 +96,22 @@ export class ReactiveMonitor {
       }
     }
 
-    // 2) Near the field at cruise with no descent => prompt descent.
-    if (ctx.destDistNm != null && ctx.destDistNm < DESCENT_TRIGGER_NM
-        && s.altitudeFt > this.fp.cruiseAltitudeFt - 1000 && s.verticalSpeedFpm > -300) {
-      candidates.push({
-        key: 'start_descent',
-        text: `you're ${Math.round(ctx.destDistNm)} miles from ${this.fp.destination}, recommend you begin your descent.`,
-      });
+    // 2) Top-of-descent prompt. Compute TOD distance from cruise (3:1 rule) and prompt as the
+    // aircraft nears it, only while still up high and not yet descending.
+    if (ctx.destDistNm != null && s.altitudeFt > this.fp.cruiseAltitudeFt - 1000 && s.verticalSpeedFpm > -300) {
+      const todNm = todDistanceNm(this.fp.cruiseAltitudeFt, 0);
+      const phase = todPhase(ctx.destDistNm, todNm);
+      if (phase === 'approaching') {
+        candidates.push({
+          key: 'tod_approaching',
+          text: `${Math.round(ctx.destDistNm - todNm)} miles to top of descent, expect lower shortly.`,
+        });
+      } else if (phase === 'at_tod') {
+        candidates.push({
+          key: 'start_descent',
+          text: `you're ${Math.round(ctx.destDistNm)} miles from ${this.fp.destination}, begin descent now.`,
+        });
+      }
     }
 
     // 3) On approach, high + fast => glidepath/speed nudge.
