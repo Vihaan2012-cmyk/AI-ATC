@@ -209,6 +209,7 @@ function dashboardData(deps: CommsDeps, lastPos: { lat: number; lon: number; hdg
 export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer {
   // Latest live position sample, for the dashboard's /api/dashboard snapshot.
   let lastPos: { lat: number; lon: number; hdg: number; altFt: number; gsKt: number; onGround: boolean } | null = null;
+  let lastPilotTxAt = Date.now(); // for proactive "say intentions" prompts
   const http = createServer((req, res) => {
     const path = (req.url ?? '/').split('?')[0] ?? '/';
     if (req.method === 'GET' && (path === '/' || path === '/atc-widget.html')) {
@@ -314,6 +315,7 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
       let msg: { type?: string; text?: string; to?: string; service?: string };
       try { msg = JSON.parse(String(raw)); } catch { return; }
       if (msg.type === 'pilot_tx' && typeof msg.text === 'string' && msg.text.trim()) {
+        lastPilotTxAt = Date.now();
         // Voice/text ground-service requests (fuel/jetway/catering/etc.) go to the ramp, not ATC.
         const svc = matchGroundService(msg.text);
         if (svc) {
@@ -389,11 +391,14 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
           if (note) broadcast({ type: 'atc_tx', from: 'Advisory', freq: null, text: `${cs}, ${note}`, expecting: 'none' });
         }
 
-        // Reactive ATC: nudge on deviations (cooldown-limited inside the monitor).
+        // Reactive + proactive ATC: nudge on deviations and initiate next steps.
         const adv = monitor.evaluate(s, {
           assignedAltitudeFt: deps.session.assignedAltitudeFt,
           arriving: deps.session.isArriving,
           destDistNm: monitor.destDistance(s),
+          phase,
+          controller: deps.session.activeKind,
+          msSincePilotTx: Date.now() - lastPilotTxAt,
         }, Date.now());
         if (adv) {
           broadcast({ type: 'atc_tx', from: STATION_LABEL[deps.session.activeKind] ?? 'ATC', freq: deps.session.activeFreqMhz, text: `${cs}, ${adv.text}`, expecting: 'none' });

@@ -18,6 +18,12 @@ export interface MonitorContext {
   arriving: boolean;
   /** Great-circle distance to destination (nm), if known. */
   destDistNm: number | null;
+  /** Current flight phase from the tracker (climb/cruise/descent/approach/...). */
+  phase?: string;
+  /** Active controller kind, for proactive station-appropriate prompts. */
+  controller?: string;
+  /** ms since the pilot last transmitted (proactive "go ahead" nudges). */
+  msSincePilotTx?: number;
 }
 
 const COOLDOWN_MS = 60000;       // don't repeat the same callout within a minute
@@ -78,6 +84,28 @@ export class ReactiveMonitor {
       } else if (s.iasKt > 210) {
         candidates.push({ key: 'fast', text: `reduce speed, you're fast for the approach.` });
       }
+    }
+
+    // --- PROACTIVE: the controller initiates, rather than waiting for you ---
+
+    // 4) Airborne & climbing on departure but never checked in -> prompt the handoff/check-in.
+    if (ctx.controller === 'departure' && s.altitudeAglFt > 1500 && s.altitudeAglFt < 8000 && s.verticalSpeedFpm > 300) {
+      candidates.push({ key: 'proactive_dep', text: `radar contact, identified. Report your assigned altitude.` });
+    }
+
+    // 5) Reached cruise -> Center proactively confirms and looks ahead.
+    if (ctx.phase === 'cruise' && Math.abs(s.altitudeFt - this.fp.cruiseAltitudeFt) < 600) {
+      candidates.push({ key: 'proactive_cruise', text: `level at cruise, maintain ${spokenAltitude(this.fp.cruiseAltitudeFt)}. We'll have lower for you shortly.` });
+    }
+
+    // 6) Established inbound (close + descending through ~6000 AGL) -> proactively send to Tower.
+    if (ctx.arriving && ctx.destDistNm != null && ctx.destDistNm < 12 && s.altitudeAglFt < 6000 && s.altitudeAglFt > 1200) {
+      candidates.push({ key: 'proactive_tower', text: `you're established inbound — contact Tower when ready.` });
+    }
+
+    // 7) You've gone silent at a point where ATC expects a call -> a gentle prompt.
+    if (ctx.msSincePilotTx != null && ctx.msSincePilotTx > 120000 && !s.onGround) {
+      candidates.push({ key: 'proactive_silent', text: `say intentions.` });
     }
 
     // Pick the first candidate not in cooldown.
