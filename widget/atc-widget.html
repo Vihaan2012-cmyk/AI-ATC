@@ -61,6 +61,8 @@
   .radio .rt { color: #6f8197; font-size: 12px; }
   .radio .stn { color: var(--accent); font-weight: 700; font-size: 11px; letter-spacing: .6px; text-transform: uppercase; }
   .radio .freq { margin-left: auto; font-size: 16px; font-weight: 700; color: #74e6c2; letter-spacing: 1px; }
+  .radio .txind { font: 700 10px ui-monospace, Consolas, monospace; color: #ff5a5a; letter-spacing: 1px; padding: 2px 7px; border: 1px solid #5a1d1d; border-radius: 4px; background: #2a0e0e; animation: txpulse 1s ease-in-out infinite; }
+  @keyframes txpulse { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
   .radio .freq:empty::after { content: "---.---"; color: #3a4a5c; }
   /* clearance HUD strip — persistent active-clearance readout */
   .hud { flex: 0 0 auto; display: flex; gap: 1px; background: #0a121b; border-bottom: 1px solid #182433; overflow-x: auto; }
@@ -250,6 +252,7 @@
           <span class="rt mono" id="rt"></span>
           <span class="stn" id="stn"></span>
           <span class="freq mono" id="freq"></span>
+          <span class="txind" id="txind" style="display:none;">● TX</span>
         </div>
         <div class="hud" id="hud" style="display:flex;">
           <div class="hudc"><span class="hk">ALT</span><span class="hv" id="hud-alt">—</span></div>
@@ -783,7 +786,18 @@ renderGroundAircraft();
 var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 var rec=null, listening=false, heard='';
 var micBtn=$('mic');
-function setMic(on){ listening=on; micBtn.classList.toggle('listening', on); micBtn.title = on ? 'Listening… (click to stop)' : 'Push to talk (click, or hold Space)'; }
+function setMic(on){
+  listening=on; micBtn.classList.toggle('listening', on);
+  micBtn.title = on ? 'Listening… (click to stop)' : 'Push to talk (click, or hold Space)';
+  var tx=$('txind'); if(tx) tx.style.display = on ? 'inline-flex' : 'none';
+  // Volume ducking: drop ambience + cancel any in-progress speech while the pilot transmits.
+  if(on){ try{ if(window.speechSynthesis) speechSynthesis.cancel(); }catch(e){} duckAudio(true); }
+  else { duckAudio(false); }
+}
+// Duck ATC/ambience audio while transmitting (lower ambience gain; restore after).
+function duckAudio(on){
+  try{ if(ambNode && ambNode.g){ ambNode.g.gain.value = on ? 0.004 : 0.015; } }catch(e){}
+}
 function startListen(){
   if(!SR || listening) return;
   heard='';
@@ -808,6 +822,8 @@ else {
   // Space = hold-to-talk (when not typing in the input box)
   document.addEventListener('keydown',function(e){ if(e.code==='Space' && document.activeElement!==$('input')){ e.preventDefault(); if(!listening) startListen(); } });
   document.addEventListener('keyup',function(e){ if(e.code==='Space' && document.activeElement!==$('input') && listening){ e.preventDefault(); stopListen(); } });
+  // Global push-to-talk (Electron): Ctrl+Shift+Space toggles even when MSFS is focused.
+  if(EL && EL.onPtt){ EL.onPtt(function(){ if(listening) stopListen(); else startListen(); }); }
 }
 
 /* ---- websocket ---- */

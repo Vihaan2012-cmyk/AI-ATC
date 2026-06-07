@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('atcWin', {
   addLogbook: (e) => ipcRenderer.invoke('logbook:add', e),
   clearLogbook: () => ipcRenderer.invoke('logbook:clear'),
   openDashboard: () => ipcRenderer.invoke('open:dashboard'),
+  onPtt: (cb) => ipcRenderer.on('ptt:toggle', () => cb()),
 });
 
 // Piper HD voice API

@@ -2,7 +2,7 @@
 // - launches the brain (SimConnect + AI + comms) itself, so it's one click
 // - on first run / missing prerequisites, shows an install wizard
 // - persists window bounds + appearance; writes brain config (.env)
-const { app, BrowserWindow, ipcMain, shell, utilityProcess } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, utilityProcess, globalShortcut } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -154,10 +154,20 @@ function createWindow() {
 // taskbar grouping, and Windows search ("press Win, type Air Traffic Control") resolve to it.
 if (process.platform === 'win32') app.setAppUserModelId('com.msfsaiatc.app');
 
-app.whenReady().then(createWindow);
+app.whenReady().then(createWindow).then(registerPtt);
 app.on('window-all-closed', () => app.quit());
 app.on('before-quit', stopBrain);
+app.on('will-quit', () => { try { globalShortcut.unregisterAll(); } catch {} });
 app.on('activate', () => { if (!win) createWindow(); });
+
+// Global push-to-talk: CapsLock-free combo (Ctrl+Shift+Space) works even when MSFS is focused,
+// so you can key the mic without alt-tabbing. Sends a toggle to the renderer.
+function registerPtt() {
+  try {
+    const accel = 'Control+Shift+Space';
+    globalShortcut.register(accel, () => { if (win && !win.isDestroyed()) win.webContents.send('ptt:toggle'); });
+  } catch (e) { console.error('PTT shortcut registration failed:', e); }
+}
 
 // window controls
 ipcMain.on('win:minimize', () => { if (win) win.minimize(); });
