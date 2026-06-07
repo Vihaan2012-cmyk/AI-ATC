@@ -228,7 +228,7 @@
           <span class="stn" id="stn"></span>
           <span class="freq mono" id="freq"></span>
         </div>
-        <div class="hud" id="hud" style="display:none;">
+        <div class="hud" id="hud" style="display:flex;">
           <div class="hudc"><span class="hk">ALT</span><span class="hv" id="hud-alt">—</span></div>
           <div class="hudc"><span class="hk">HDG</span><span class="hv" id="hud-hdg">—</span></div>
           <div class="hudc"><span class="hk">SPD</span><span class="hv" id="hud-spd">—</span></div>
@@ -657,13 +657,22 @@ function renderGroundAircraft(){
 function flText(ft){ if(ft==null) return null; return ft>=18000 ? ('FL'+Math.round(ft/100)) : (Math.round(ft).toLocaleString()+'ft'); }
 function hudSet(id, val, cls){ var e=$(id); if(!e) return; e.textContent = (val==null||val==='') ? '—' : val; e.className = 'hv' + (val!=null&&val!==''&&cls ? (' '+cls) : ''); }
 function hudShow(){ if($('hud')) $('hud').style.display='flex'; }
+// Track which fields ATC has assigned, so live sim data doesn't overwrite a clearance value.
+var hudAssigned = {};
 function hudApply(a){
   hudShow();
-  if(a.altitudeFt!=null) hudSet('hud-alt', flText(a.altitudeFt), 'set');
-  if(a.headingDeg!=null) hudSet('hud-hdg', String(a.headingDeg).padStart(3,'0')+'°', 'set');
-  if(a.speedKt!=null) hudSet('hud-spd', a.speedKt+'kt', 'set');
+  if(a.altitudeFt!=null){ hudSet('hud-alt', flText(a.altitudeFt), 'set'); hudAssigned.alt=true; }
+  if(a.headingDeg!=null){ hudSet('hud-hdg', String(a.headingDeg).padStart(3,'0')+'°', 'set'); hudAssigned.hdg=true; }
+  if(a.speedKt!=null){ hudSet('hud-spd', a.speedKt+'kt', 'set'); hudAssigned.spd=true; }
   if(a.squawk) hudSet('hud-sq', a.squawk, 'set');
   if(a.nextFreqMhz!=null) hudSet('hud-next', Number(a.nextFreqMhz).toFixed(3)+(a.nextStation?(' '+a.nextStation):''), 'set');
+}
+// Live flight data from the sim -> ALT/HDG/SPD, unless ATC has assigned that field (keep the clearance).
+function hudLive(p){
+  if(!p) return; hudShow();
+  if(!hudAssigned.alt && p.altFt!=null) hudSet('hud-alt', Math.round(p.altFt).toLocaleString()+' ft');
+  if(!hudAssigned.hdg && p.hdg!=null) hudSet('hud-hdg', String(Math.round(p.hdg)%360).padStart(3,'0')+'°');
+  if(!hudAssigned.spd && p.gsKt!=null) hudSet('hud-spd', Math.round(p.gsKt)+' kt');
 }
 function hudExpecting(exp){ hudShow(); hudSet('hud-exp', exp==='readback' ? 'READBACK' : 'nothing', exp==='readback'?'warn':null); }
 /* Live traffic: show the count and how close the nearest is; warn if it's within 5 nm. */
@@ -725,7 +734,7 @@ function connect(){
     else if(m.type==='clearance'){ hudApply(m.assigned||{}); }
     else if(m.type==='squawk'){ hudSet('hud-sq', m.code, 'set'); }
     else if(m.type==='radio'){ var rf=Number(m.com1).toFixed(3); $('freq').textContent=rf; entry('sys','','', (m.active?'COM1 tuned to ':'COM1 standby set to ')+rf); }
-    else if(m.type==='position'){ pos=m; updatePlanFoot(); updateAircraft(); }
+    else if(m.type==='position'){ pos=m; updatePlanFoot(); updateAircraft(); hudLive(m); }
     else if(m.type==='traffic'){ updateTraffic(m); }
     else if(m.type==='scorecard'){ lastScore=m; renderScore(); }
     else if(m.type==='chatter'){ entry('chatter', m.from, '', m.text); }
