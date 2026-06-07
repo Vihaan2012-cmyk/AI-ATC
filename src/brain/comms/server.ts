@@ -478,6 +478,7 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
         broadcast({ type: 'position', ...lastPos });
         // Frequency awareness: tell the session what COM1 is tuned to.
         if (s.com1Mhz) deps.session.setCom1(s.com1Mhz);
+        deps.session.setHeading(s.headingTrue); // for hold-entry guidance
 
         // Refresh the traffic picture ~every 5s, then hand it to the session + UI.
         // Off unless explicitly enabled (LIVE_TRAFFIC=1) — reading AI objects can destabilize MSFS.

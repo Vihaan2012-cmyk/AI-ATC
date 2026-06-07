@@ -99,6 +99,12 @@ export class ControllerSession {
     if (mhz && mhz > 100 && mhz < 140) { this.com1Mhz = mhz; this.enforceFrequency = true; }
   }
 
+  /** Feed the live aircraft heading (deg true), used for hold-entry guidance. */
+  setHeading(deg: number): void {
+    if (Number.isFinite(deg)) this.lastHeadingDeg = ((deg % 360) + 360) % 360;
+  }
+  private lastHeadingDeg: number | null = null;
+
   /** Turn frequency enforcement on/off (e.g. from a realism setting). */
   setEnforceFrequency(on: boolean): void { this.enforceFrequency = on; }
 
@@ -297,7 +303,7 @@ export class ControllerSession {
   private holdReply(): Reply {
     const now = new Date();
     const nowMin = now.getUTCHours() * 60 + now.getUTCMinutes();
-    const hold = buildHold(this.fp, nowMin);
+    const hold = buildHold(this.fp, nowMin, 15, this.lastHeadingDeg ?? undefined);
     return {
       from: this.lastFrom === 'ATC' ? (STATION_LABELS[this.kind] ?? 'Center') : this.lastFrom,
       freqMhz: this.activeFreqMhz,
