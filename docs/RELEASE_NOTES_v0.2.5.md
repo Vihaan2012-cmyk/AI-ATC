@@ -4,8 +4,8 @@ Local **text + voice AI air traffic control** for Microsoft Flight Simulator 202
 of Beyond ATC. Everything runs on your machine — no cloud, no subscription.
 
 It's an **ATC controller, not a chatbot**: a deterministic engine owns all the facts (frequencies,
-runways, procedures, sequencing, and now *live traffic*), and a small local AI only turns what you say
-into the closest valid pilot request.
+runways, procedures, sequencing), and a small local AI only turns what you say into the closest valid
+pilot request.
 
 ### New in 0.2.5
 
@@ -14,16 +14,24 @@ into the closest valid pilot request.
   > *"Center, deviate two zero left for weather, then direct DUMBA, and climb to one zero thousand."*
   Handles deviations, direct-to, holds, climb/descend, higher/lower, and speed — including spoken
   numbers ("flight level two four zero", "two five zero knots") and glued forms ("FL240").
-- **Living traffic** — the controller now sees the **real AI/multiplayer aircraft your sim is
-  rendering** and works them into the radio picture (no fabricated traffic):
-  - Proactive **traffic advisories** when an aircraft is close and near your altitude —
-    *"traffic, three o'clock, nine miles, two thousand feet above."*
-  - Ask **"say traffic"** anytime for the current picture.
-  - A **TRAFFIC** chip on the HUD strip shows the count and nearest range (and warns inside 5 nm).
+- **Live flight HUD** — the clearance strip is now always visible and shows live **ALT / HDG / SPD**
+  straight from the sim, alongside your assigned squawk, next frequency, and what ATC is expecting.
+- **Living traffic (experimental, opt-in)** — the controller can read the **real AI/multiplayer
+  aircraft your sim is rendering** and call them out (*"traffic, three o'clock, nine miles, two
+  thousand feet above"*), with a **"say traffic"** query and a HUD **TRAFFIC** chip. It's **off by
+  default** (set `LIVE_TRAFFIC=1` to enable) while it's hardened across different setups.
 - **Cleaner install** — the app installs as **`Air Traffic Control.exe`** and reliably shows up when
   you press the **Windows key** and type "Air Traffic Control" (proper Start Menu + desktop entry).
+- **Voice is now opt-in** — ATC is text-only on first launch; enable TTS in **SETUP → Appearance**.
 
 ### Fixed in 0.2.5
+- **MSFS no longer crashes on connect.** Reading nearby AI traffic could destabilize the sim; the
+  traffic read is now numeric-only and disabled by default.
+- **No more harsh radio "beep."** Removed the squelch tone and radio-band filter — ATC voices play
+  clean. Also fixed a bug where traffic advisories repeated every second instead of obeying their
+  cooldown.
+- **SimConnect auto-reconnects.** The app now keeps trying to connect until MSFS is in a flight, and
+  recovers after a flight reload — no need to restart the app to get live data.
 - **SimBrief username / Pilot ID now save automatically.** Previously you had to click the
   "Save connection & AI" button, which was easy to miss — entering your ID and closing the window lost
   it. Connection settings now persist the moment you click away from the field.
@@ -67,8 +75,8 @@ briefing on the dashboard). To connect it:
 ## Known limitations / honest notes
 
 - **Windows only** (SimConnect is Windows-only). **Unsigned** — expect the SmartScreen prompt above.
-- **Living traffic** reflects whatever AI/MP aircraft your sim is actually rendering — if you fly with
-  AI traffic off, you'll (correctly) hear "no reported traffic."
+- **Living traffic is experimental and off by default** (enable with `LIVE_TRAFFIC=1`). When on, it
+  reflects whatever AI/MP aircraft your sim is actually rendering.
 - **SID/STAR/airways** use SimConnect + heuristics, not a full procedure database (Navigraph data is
   personal-use-licensed and intentionally not redistributed — the app reads your own sim's navdata).
 - This is a **fan project**, not affiliated with Microsoft, Asobo, Navigraph, SimBrief, or Beyond ATC.
