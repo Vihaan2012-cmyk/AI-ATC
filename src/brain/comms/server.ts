@@ -33,6 +33,7 @@ import type { ControllerSession } from '../atc/session.js';
 import type { FlightPlan } from '../types.js';
 import type { SimClient } from '../sim/simClient.js';
 import type { MetarInfo } from '../sim/weather.js';
+import { fetchMetars } from '../sim/weather.js';
 
 // Proactive nudges as the flight progresses (reminds you to make the next call).
 const ADVISORY: Record<string, string> = {
@@ -522,6 +523,20 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
     };
     sim.onConnected(startStreaming);
   }
+
+  // Live weather: re-fetch real METAR for origin+destination every ~10 min and update in place,
+  // so ATIS/altimeter stay current through a long flight. Re-broadcasts the info flyout.
+  const refreshWeather = () => {
+    fetchMetars([deps.fp.origin, deps.fp.destination]).then((wx) => {
+      let changed = false;
+      for (const [icao, info] of Object.entries(wx)) {
+        if (deps.weather[icao]?.raw !== info.raw) { deps.weather[icao] = info; changed = true; }
+      }
+      if (changed) broadcast(fpInfoMessage(deps.fp, deps.weather));
+    }).catch(() => { /* offline; keep last */ });
+  };
+  const wxTimer = setInterval(refreshWeather, 10 * 60 * 1000);
+  if (typeof wxTimer === 'object' && 'unref' in wxTimer) (wxTimer as { unref(): void }).unref();
 
   http.listen(port, () => {
     console.log(`Comms: widget http://localhost:${port}/  |  WebSocket ws://localhost:${port}`);
