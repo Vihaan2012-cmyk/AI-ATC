@@ -442,6 +442,12 @@
             <button class="btn" id="openWiz" style="background:#18283a;color:#cfe0f2;">Re-run install wizard</button>
             <button class="btn" id="exportLog" style="background:#18283a;color:#cfe0f2;margin-left:8px;">Export transcript</button>
           </div>
+          <div class="sect">
+            <h3>Diagnostics</h3>
+            <div class="note" id="diagLine">brain: — · sim: — · latency: —</div>
+            <button class="btn" id="copyDiag" style="background:#18283a;color:#cfe0f2;margin-top:6px;">Copy diagnostics</button>
+            <div class="note" style="margin-top:6px;">Phone/tablet companion: open <b>http://&lt;this-pc-ip&gt;:8742/</b> in a browser on the same network.</div>
+          </div>
           <div class="sect" id="logbookSect" style="display:none;">
             <h3>Logbook</h3>
             <div id="scoreNow" class="note" style="margin-bottom:6px;">No active flight yet.</div>
@@ -1366,10 +1372,52 @@ function gradeDrill(l){
 document.querySelectorAll('.lvlbtn').forEach(function(btn){ btn.addEventListener('click',function(){ document.querySelectorAll('.lvlbtn').forEach(function(x){x.classList.remove('active');}); btn.classList.add('active'); fsLevel=btn.getAttribute('data-lvl'); renderSchool(); }); });
 document.querySelectorAll('.schtab').forEach(function(btn){ btn.addEventListener('click',function(){ document.querySelectorAll('.schtab').forEach(function(x){x.classList.remove('active');}); btn.classList.add('active'); fsTab=btn.getAttribute('data-s'); renderSchool(); }); });
 
+/* ---- Diagnostics / perf HUD ---- */
+var diag={ brain:'down', sim:'unknown', latency:null };
+function updateDiagLine(){
+  var el=$('diagLine'); if(!el) return;
+  el.textContent='brain: '+diag.brain+' · sim: '+diag.sim+' · latency: '+(diag.latency!=null?diag.latency+' ms':'—');
+}
+function pollDiag(){
+  var t0=(window.performance&&performance.now)?performance.now():0;
+  fetch(WS_URL.replace(/^ws/,'http').replace(/\/$/,'')+'/api/dashboard',{cache:'no-store'}).then(function(r){return r.json();}).then(function(j){
+    diag.brain='up'; diag.latency=Math.round(((window.performance&&performance.now)?performance.now():0)-t0);
+    diag.sim=(j&&j.live&&j.live.active)?'connected':'not in flight';
+    updateDiagLine();
+  }).catch(function(){ diag.brain='down'; diag.sim='unknown'; updateDiagLine(); });
+}
+setInterval(pollDiag, 5000); pollDiag();
+if($('copyDiag')) $('copyDiag').addEventListener('click',function(){
+  var info={ app:(EL?'desktop':'browser'), brain:diag.brain, sim:diag.sim, latencyMs:diag.latency,
+    flight:(flight?(flight.callsign+' '+flight.origin+'→'+flight.destination):'none'),
+    controller:curKind, ua:navigator.userAgent, ts:new Date().toISOString() };
+  var text='ATC diagnostics\n'+JSON.stringify(info,null,2);
+  try{ navigator.clipboard.writeText(text).then(function(){ if($('diagLine')) $('diagLine').textContent='Copied diagnostics to clipboard.'; setTimeout(updateDiagLine,1500); }); }
+  catch(e){ if($('diagLine')) $('diagLine').textContent='Copy failed — clipboard blocked.'; }
+});
+
+/* ---- In-app changelog ("what's new", shown once per version) ---- */
+var APP_VERSION='0.3.0';
+var WHATS_NEW=[
+  'Free-flow ATC, conditional clearances, go-around, visual/circle approaches, reroutes',
+  'Flight School: learn ATC radio with lessons, drills & a phrasebook',
+  'Push-to-talk (Ctrl+Shift+Space), COM1/standby panel, flight progress strip',
+  'Live traffic on the map + range rings; granular traffic toggles',
+  'Restart-brain button, settings search/export, themes, accessibility',
+];
+function maybeShowWhatsNew(){
+  try{
+    if(localStorage.getItem('atc.seenVersion')===APP_VERSION) return;
+    entry('sys','','', 'What\'s new in '+APP_VERSION+':\n• '+WHATS_NEW.join('\n• '));
+    localStorage.setItem('atc.seenVersion', APP_VERSION);
+  }catch(e){}
+}
+
 defaultQuick();
 loadSetup();
 renderProgress();
 renderSchool();
+maybeShowWhatsNew();
 connect();
 </script>
 </body>
