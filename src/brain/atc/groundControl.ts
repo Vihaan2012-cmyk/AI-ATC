@@ -37,7 +37,7 @@ const NATO: Record<string, string> = {
   N: 'November', P: 'Papa', Q: 'Quebec', R: 'Romeo', S: 'Sierra', T: 'Tango',
   U: 'Uniform', V: 'Victor', W: 'Whiskey', Y: 'Yankee', Z: 'Zulu',
 };
-function spokenTaxiway(name: string): string {
+export function spokenTaxiway(name: string): string {
   return name.split('').map((c) => NATO[c] ?? c).join(' ');
 }
 
