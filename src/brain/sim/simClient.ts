@@ -167,9 +167,40 @@ export class SimClient {
   private readonly pending = new Map<number, PendingFacility>();
   private readonly pendingGround = new Map<number, PendingGround>();
   private comEventsReady = false;
+  /** Callbacks fired each time a connection is (re)established. */
+  private readonly connectedCbs: Array<() => void> = [];
+  private retrying = false;
 
   get connected(): boolean {
     return this.handle !== null;
+  }
+
+  /** Register a callback fired whenever SimConnect (re)connects — e.g. to (re)start live streaming. */
+  onConnected(cb: () => void): void {
+    this.connectedCbs.push(cb);
+    if (this.handle) { try { cb(); } catch { /* ignore */ } }
+  }
+
+  /**
+   * Keep trying to connect in the background until MSFS is ready (it may not be in a flight when the
+   * brain starts). Fires onConnected callbacks on success. Re-arms on 'quit' so unloading/reloading
+   * a flight reconnects automatically. Non-blocking: returns immediately.
+   */
+  connectWithRetry(appName = 'MSFS AI ATC', intervalMs = 5000): void {
+    if (this.retrying) return;
+    this.retrying = true;
+    const attempt = async (): Promise<void> => {
+      if (this.handle) return; // already connected
+      try {
+        const name = await this.connect(appName);
+        console.log(`SimConnect: connected (${name})`);
+        for (const cb of this.connectedCbs) { try { cb(); } catch (e) { console.error('[SimConnect] onConnected cb failed', e); } }
+      } catch {
+        // Not ready yet — quietly try again. (Avoid log spam; this is expected pre-flight.)
+        setTimeout(() => { void attempt(); }, intervalMs);
+      }
+    };
+    void attempt();
   }
 
   async connect(appName = 'MSFS AI ATC'): Promise<string> {
@@ -189,7 +220,11 @@ export class SimClient {
 
     handle.on('facilityData', (d) => this.onFacilityData(d));
     handle.on('facilityDataEnd', (d) => this.onFacilityDataEnd(d));
-    handle.on('quit', () => { this.handle = null; });
+    handle.on('quit', () => {
+      this.handle = null;
+      // MSFS closed/unloaded — if a retry loop is active, resume trying to reconnect.
+      if (this.retrying) { this.retrying = false; this.connectWithRetry(appName); }
+    });
     handle.on('exception', (e) => console.error('[SimConnect exception]', e));
 
     return recvOpen.applicationName;

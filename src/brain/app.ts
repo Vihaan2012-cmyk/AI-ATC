@@ -46,8 +46,11 @@ export async function createApp(): Promise<AppContext> {
       const app = await sim.connect('MSFS AI ATC');
       console.log(`SimConnect: connected (${app})`);
     } catch (e) {
-      console.error(`SimConnect: unavailable (${(e as Error).message}); falling back to cache/mock.`);
-      sim = null;
+      // MSFS may not be in a flight yet. Keep the client and retry in the background so live data
+      // (position/HUD/traffic) starts streaming automatically once the sim is ready. Navdata/ground
+      // below fall back to cache for now.
+      console.error(`SimConnect: not ready (${(e as Error).message}); will keep retrying in the background.`);
+      sim.connectWithRetry('MSFS AI ATC');
     }
   }
 

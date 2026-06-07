@@ -68,13 +68,14 @@ export class ReactiveMonitor {
     }
 
     // 1b) Live traffic: a real AI/MP aircraft is close and near our altitude -> issue an advisory.
+    // Stable key (per conflicting aircraft) so the 60s cooldown actually throttles it — keying on
+    // range/clock would change every tick as the target moves and fire on every sample (= nagging).
     const conflict = ctx.traffic?.primary ?? null;
     if (conflict && conflict.rangeNm <= TRAFFIC_ALERT_NM) {
       const adv = trafficAdvisory(conflict);
       if (adv) {
-        // Key off the clock+range bucket so a moving target re-triggers as it closes, but the
-        // identical picture doesn't nag within the cooldown window.
-        candidates.push({ key: `traffic_${conflict.clock}_${Math.round(conflict.rangeNm)}`, text: `${adv}.` });
+        const who = (conflict.callsign || conflict.title || 'unknown').replace(/\s+/g, '');
+        candidates.push({ key: `traffic_${who}`, text: `${adv}.` });
       }
     }
 

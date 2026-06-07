@@ -417,8 +417,11 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
     let trafficPicture: TrafficPicture | null = null;
     let lastTrafficPoll = 0;
     const sim = deps.sim;
+    // (Re)start live streaming whenever SimConnect connects. onConnected fires immediately if the
+    // sim is already connected, or later when the background retry succeeds (MSFS loaded a flight).
+    const startStreaming = () => {
     try {
-      deps.sim.subscribeFlightState((s) => {
+      sim.subscribeFlightState((s) => {
         lastPos = { lat: s.latitude, lon: s.longitude, hdg: s.headingTrue,
           altFt: s.altitudeFt, gsKt: s.groundSpeedKt, onGround: s.onGround };
         broadcast({ type: 'position', ...lastPos });
@@ -466,6 +469,8 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
         }
       });
     } catch { /* sim not available */ }
+    };
+    sim.onConnected(startStreaming);
   }
 
   http.listen(port, () => {
