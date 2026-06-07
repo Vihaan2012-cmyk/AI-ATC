@@ -38,6 +38,10 @@ const TRAFFIC_ALERT_NM = 8;      // call live traffic when a co-altitude conflic
 
 export class ReactiveMonitor {
   private lastFired = new Map<string, number>();
+  /** How many distinct altitude busts have been flagged this session (for escalation). */
+  private altBusts = 0;
+  /** True while currently busted, so we count each excursion once (not every sample). */
+  private busted = false;
 
   constructor(private fp: FlightPlan) {}
 
@@ -58,12 +62,25 @@ export class ReactiveMonitor {
     // 1) Altitude bust vs. assignment (only when airborne and assigned something).
     if (ctx.assignedAltitudeFt != null) {
       const diff = s.altitudeFt - ctx.assignedAltitudeFt;
-      if (Math.abs(diff) > ALT_BUST_FT && Math.abs(s.verticalSpeedFpm) < 500) {
+      const isBust = Math.abs(diff) > ALT_BUST_FT && Math.abs(s.verticalSpeedFpm) < 500;
+      if (isBust) {
         const dir = diff > 0 ? 'above' : 'below';
-        candidates.push({
-          key: 'alt_bust',
-          text: `check altitude — you're ${Math.round(Math.abs(diff))} feet ${dir} your assigned ${spokenAltitude(ctx.assignedAltitudeFt)}.`,
-        });
+        // Count each excursion once (transition into busted state) for deviation escalation.
+        if (!this.busted) { this.busted = true; this.altBusts += 1; }
+        if (this.altBusts >= 2) {
+          // Brasher warning — repeated uncorrected deviation.
+          candidates.push({
+            key: 'pilot_deviation',
+            text: `possible pilot deviation, advise you contact ${this.fp.destination} approach at the number provided; maintain ${spokenAltitude(ctx.assignedAltitudeFt)}.`,
+          });
+        } else {
+          candidates.push({
+            key: 'alt_bust',
+            text: `check altitude — you're ${Math.round(Math.abs(diff))} feet ${dir} your assigned ${spokenAltitude(ctx.assignedAltitudeFt)}.`,
+          });
+        }
+      } else {
+        this.busted = false; // back within tolerance — ready to count the next excursion
       }
     }
 
