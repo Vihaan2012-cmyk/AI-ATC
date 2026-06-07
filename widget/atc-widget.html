@@ -71,6 +71,29 @@
   .hud .hv.set { color: #74e6c2; }
   .hud .hv.warn { color: #e0a14a; }
 
+  /* Flight progress strip: controller chain timeline */
+  .progress { flex: 0 0 auto; display: flex; gap: 0; padding: 5px 8px; background: #0a121b; border-bottom: 1px solid #182433; overflow-x: auto; }
+  .progress .pstep { font: 700 8px ui-monospace, Consolas, monospace; letter-spacing: .5px; color: #46586b; padding: 2px 7px; white-space: nowrap; position: relative; }
+  .progress .pstep.done { color: #5a8f76; }
+  .progress .pstep.cur { color: #74e6c2; background: #10261d; border-radius: 4px; }
+  .progress .pstep:not(:last-child)::after { content: '›'; margin-left: 6px; color: #2a3a4a; }
+
+  /* Pinned current-clearance banner */
+  .clrbanner { flex: 0 0 auto; display: flex; align-items: baseline; gap: 8px; padding: 6px 12px; background: #10261d; border-bottom: 1px solid #1d3a2c; }
+  .clrbanner .clrlabel { font: 700 8.5px ui-monospace, Consolas, monospace; letter-spacing: 1px; color: #5a8f76; }
+  .clrbanner .clrtext { font: 600 12px ui-monospace, Consolas, monospace; color: #aef0d0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Compact density mode: tighter padding + smaller HUD for a thin always-on-top strip */
+  body[data-compact="1"] #log { padding: 6px 9px; gap: 5px; }
+  body[data-compact="1"] .hudc { padding: 3px 8px; min-width: 52px; }
+  body[data-compact="1"] .hud .hv { font-size: 11px; }
+  body[data-compact="1"] .progress { padding: 3px 6px; }
+  body[data-compact="1"] .composer { padding: 5px 8px; }
+  /* High-contrast accessibility mode */
+  body[data-contrast="1"] { background: #000; }
+  body[data-contrast="1"] .hud .hv, body[data-contrast="1"] .ebody { color: #fff; }
+  body[data-contrast="1"] .hud .hk, body[data-contrast="1"] .tag { color: #ffd24a; }
+
   #log { flex: 1 1 auto; overflow-y: auto; padding: 12px 13px; display: flex; flex-direction: column; gap: 10px; }
   #log::-webkit-scrollbar { width: 7px; } #log::-webkit-scrollbar-thumb { background: #1f2c3a; border-radius: 7px; }
   .entry { border-left: 2px solid #2a3b4d; padding: 2px 0 2px 10px; }
@@ -237,6 +260,8 @@
           <div class="hudc"><span class="hk">TRAFFIC</span><span class="hv" id="hud-tfc">—</span></div>
           <div class="hudc hudx"><span class="hk">EXPECTING</span><span class="hv" id="hud-exp">—</span></div>
         </div>
+        <div class="progress" id="progress"></div>
+        <div class="clrbanner" id="clrbanner" style="display:none;"><span class="clrlabel">CLEARANCE</span><span class="clrtext" id="clrtext">—</span></div>
         <div id="log"><div class="entry sys" id="empty">Connect and call ATC, or use a quick action below.</div></div>
         <div id="cpdlcRow" style="display:none;padding:4px 12px 0;">
           <button class="btn" id="cpdlcPdc" style="font-size:11px;padding:6px 11px;background:#143425;color:#9fe9bf;">Request PDC (datalink)</button>
@@ -378,6 +403,8 @@
             <div class="row inline"><label style="margin:0;min-width:84px;">Opacity</label><input type="range" id="setOpacity" min="0.4" max="1" step="0.05" /></div>
             <div class="row inline"><label style="margin:0;min-width:84px;">Text size</label><input type="range" id="setFont" min="0.85" max="1.3" step="0.05" /></div>
             <div class="row toggle"><input type="checkbox" id="setPin" /><label style="margin:0;">Always on top</label></div>
+            <div class="row toggle"><input type="checkbox" id="setCompact" /><label style="margin:0;">Compact density (thin strip)</label></div>
+            <div class="row toggle"><input type="checkbox" id="setContrast" /><label style="margin:0;">High contrast (accessibility)</label></div>
             <button class="btn" id="saveAppe">Save appearance</button>
           </div>
         </div>
@@ -402,6 +429,26 @@ var ws=null, flight=null, plan=null, pos=null, fpinfo=null, cpdlcOn=false, lastS
 var map=null, routeLine=null, acMarker=null, wpLayer=null;
 var STATION={delivery:'Clearance Delivery',ground:'Ground',tower:'Tower',departure:'Departure',center:'Center',approach:'Approach'};
 var logEl=$('log');
+
+// Flight progress strip: the gate-to-gate controller chain, current position highlighted.
+var PROGRESS_CHAIN=[['delivery','DEL'],['ground','GND'],['tower','TWR'],['departure','DEP'],['center','CTR'],['approach','APP'],['tower','TWR'],['ground','GND']];
+function renderProgress(){
+  var el=$('progress'); if(!el) return;
+  // Find the current index: first matching kind at-or-after our rough phase. Use a simple
+  // pointer that advances and never goes backward within a flight.
+  var idx=PROGRESS_CHAIN.findIndex(function(s){ return s[0]===curKind; });
+  if(idx<0) idx=0;
+  el.innerHTML='';
+  PROGRESS_CHAIN.forEach(function(s,i){
+    var d=document.createElement('span'); d.className='pstep'+(i<idx?' done':'')+(i===idx?' cur':'');
+    d.textContent=s[1]; el.appendChild(d);
+  });
+}
+function setClearanceBanner(text){
+  var b=$('clrbanner'), t=$('clrtext'); if(!b||!t) return;
+  // Strip the leading callsign for brevity.
+  t.textContent=String(text||'').replace(/^[^,]+,\s*/,''); b.style.display='flex';
+}
 
 // ---- voice (offline system TTS, distinct voice per controller) ----
 var voiceCfg = { enabled:false, rate:1.05, vol:1, piper:false, clicks:false, ambience:false };
@@ -775,8 +822,8 @@ function connect(){
     if(m.type==='hello'){ flight=m; $('cs').textContent=m.callsign; $('rt').textContent=m.origin+' ▸ '+m.destination; defaultQuick(); }
     else if(m.type==='flightplan'){ plan=m; $('planRoute').innerHTML='<b>'+esc(m.origin)+'</b> &#9656; <b>'+esc(m.destination)+'</b>  &middot; '+(m.aircraft||'')+'  &middot; cruise '+(m.cruise||'?')+' ft'; drawRoute(); }
     else if(m.type==='fpinfo'){ fpinfo=m; if($('drawer').classList.contains('open')) renderDrawer(); renderGroundAircraft(); }
-    else if(m.type==='atc_tx'){ var f=m.freq?Number(m.freq).toFixed(3):''; typeEntry(m.from,f,m.text); speak(m.text, curKind); if(m.freq) $('freq').textContent=Number(m.freq).toFixed(3); hudExpecting(m.expecting); }
-    else if(m.type==='state'){ $('stn').textContent=STATION[m.activeController]||''; curKind=m.activeController||curKind; }
+    else if(m.type==='atc_tx'){ var f=m.freq?Number(m.freq).toFixed(3):''; typeEntry(m.from,f,m.text); speak(m.text, curKind); if(m.freq) $('freq').textContent=Number(m.freq).toFixed(3); hudExpecting(m.expecting); if(m.expecting==='readback') setClearanceBanner(m.text); }
+    else if(m.type==='state'){ $('stn').textContent=STATION[m.activeController]||''; curKind=m.activeController||curKind; renderProgress(); }
     else if(m.type==='clearance'){ hudApply(m.assigned||{}); }
     else if(m.type==='squawk'){ hudSet('hud-sq', m.code, 'set'); }
     else if(m.type==='radio'){ var rf=Number(m.com1).toFixed(3); $('freq').textContent=rf; entry('sys','','', (m.active?'COM1 tuned to ':'COM1 standby set to ')+rf); }
@@ -905,12 +952,16 @@ if(EL){
 function applyAppearance(s){
   document.documentElement.style.setProperty('--accent', s.accent||'#6f8cff');
   document.documentElement.style.setProperty('--fs', (14*(s.fontScale||1))+'px');
+  document.body.setAttribute('data-compact', s.compact ? '1' : '0');
+  document.body.setAttribute('data-contrast', s.highContrast ? '1' : '0');
 }
 function loadSetup(){
   // appearance
   var s = { accent:'#6f8cff', opacity:1, fontScale:1, alwaysOnTop:true, voiceEnabled:false, voiceRate:1.05, voiceVol:1, voicePiper:false };
   function fill(){
     $('setAccent').value=s.accent; $('setOpacity').value=s.opacity; $('setFont').value=s.fontScale; $('setPin').checked=!!s.alwaysOnTop;
+    if($('setCompact')) $('setCompact').checked=!!s.compact;
+    if($('setContrast')) $('setContrast').checked=!!s.highContrast;
     $('setVoice').checked = s.voiceEnabled!==false; $('setVoiceRate').value = s.voiceRate||1.05; $('setVoiceVol').value = (s.voiceVol!=null?s.voiceVol:1);
     if($('setPiper')) $('setPiper').checked = !!s.voicePiper;
     voiceCfg = { enabled: s.voiceEnabled!==false, rate: parseFloat(s.voiceRate)||1.05, vol: (s.voiceVol!=null?parseFloat(s.voiceVol):1), piper: !!s.voicePiper, clicks: !!s.voiceClicks, ambience: !!s.voiceAmbience };
@@ -926,6 +977,8 @@ function loadSetup(){
 }
 $('saveAppe').addEventListener('click',function(){
   var s={ accent:$('setAccent').value, opacity:parseFloat($('setOpacity').value), fontScale:parseFloat($('setFont').value), alwaysOnTop:$('setPin').checked,
+    compact: $('setCompact') ? $('setCompact').checked : false,
+    highContrast: $('setContrast') ? $('setContrast').checked : false,
     voiceEnabled:$('setVoice').checked, voiceRate:parseFloat($('setVoiceRate').value), voiceVol:parseFloat($('setVoiceVol').value),
     voicePiper: $('setPiper') ? $('setPiper').checked : false,
     voiceClicks: $('setClicks') ? $('setClicks').checked : false,
@@ -1080,6 +1133,7 @@ function entryMsg(t){ entry('sys','','',t); }
 
 defaultQuick();
 loadSetup();
+renderProgress();
 connect();
 </script>
 </body>
