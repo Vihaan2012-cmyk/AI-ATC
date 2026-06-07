@@ -234,6 +234,7 @@
           <div class="hudc"><span class="hk">SPD</span><span class="hv" id="hud-spd">—</span></div>
           <div class="hudc"><span class="hk">SQUAWK</span><span class="hv" id="hud-sq">—</span></div>
           <div class="hudc"><span class="hk">NEXT</span><span class="hv" id="hud-next">—</span></div>
+          <div class="hudc"><span class="hk">TRAFFIC</span><span class="hv" id="hud-tfc">—</span></div>
           <div class="hudc hudx"><span class="hk">EXPECTING</span><span class="hv" id="hud-exp">—</span></div>
         </div>
         <div id="log"><div class="entry sys" id="empty">Connect and call ATC, or use a quick action below.</div></div>
@@ -587,7 +588,8 @@ function defaultQuick(){
     {label:'Request clearance',send:'Delivery, request IFR clearance to '+dest+', information Alpha.'},
     {label:'Pushback',send:'Ground, request pushback.'},
     {label:'Taxi',send:'Ground, request taxi.'},
-    {label:'Ready for departure',send:'Tower, holding short, ready for departure.'}
+    {label:'Ready for departure',send:'Tower, holding short, ready for departure.'},
+    {label:'Say traffic',send:'Say traffic.'}
   ]);
 }
 function sendText(text){
@@ -668,6 +670,15 @@ function hudApply(a){
   if(a.nextFreqMhz!=null) hudSet('hud-next', Number(a.nextFreqMhz).toFixed(3)+(a.nextStation?(' '+a.nextStation):''), 'set');
 }
 function hudExpecting(exp){ hudShow(); hudSet('hud-exp', exp==='readback' ? 'READBACK' : 'nothing', exp==='readback'?'warn':null); }
+/* Live traffic: show the count and how close the nearest is; warn if it's within 5 nm. */
+function updateTraffic(m){
+  hudShow();
+  var n = m.count|0;
+  if(n===0){ hudSet('hud-tfc', 'clear'); return; }
+  var nearest = (m.aircraft && m.aircraft[0]) ? m.aircraft[0] : null;
+  var txt = n + (nearest ? (' · ' + nearest.rangeNm + 'nm') : '');
+  hudSet('hud-tfc', txt, (nearest && nearest.rangeNm <= 5) ? 'warn' : 'set');
+}
 renderGroundAircraft();
 
 /* ---- speech-to-text (push-to-talk) ---- */
@@ -719,6 +730,7 @@ function connect(){
     else if(m.type==='squawk'){ hudSet('hud-sq', m.code, 'set'); }
     else if(m.type==='radio'){ var rf=Number(m.com1).toFixed(3); $('freq').textContent=rf; entry('sys','','', (m.active?'COM1 tuned to ':'COM1 standby set to ')+rf); }
     else if(m.type==='position'){ pos=m; updatePlanFoot(); updateAircraft(); }
+    else if(m.type==='traffic'){ updateTraffic(m); }
     else if(m.type==='scorecard'){ lastScore=m; renderScore(); }
     else if(m.type==='chatter'){ entry('chatter', m.from, '', m.text); }
     else if(m.type==='cpdlc_status'){ cpdlcOn=!!m.enabled; if($('cpdlcRow')) $('cpdlcRow').style.display = cpdlcOn?'block':'none'; }

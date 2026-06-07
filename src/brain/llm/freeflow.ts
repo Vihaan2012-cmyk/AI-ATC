@@ -70,9 +70,10 @@ export function parseEnrouteRequests(text: string): EnrouteRequest[] {
     const direct = clause.match(/\bdirect (?:to )?([A-Za-z]{2,5})\b/i);
     if (direct) { const f = (direct[1] ?? '').toUpperCase(); if (f && !['THE', 'TO', 'FOR'].includes(f)) add({ type: 'direct', fix: f }); }
 
-    // hold at/over <FIX>
+    // hold at/over <FIX>. Exclude "holding short" (a ground-position report, not an enroute hold)
+    // and other non-fix words that follow "hold".
     const hold = clause.match(/\bhold(?:ing)? (?:at |over )?([A-Za-z]{2,5})\b/i);
-    if (hold) { const f = (hold[1] ?? '').toUpperCase(); if (f && !['THE', 'AT', 'AS'].includes(f)) add({ type: 'hold_at', fix: f }); }
+    if (hold) { const f = (hold[1] ?? '').toUpperCase(); if (f && !['THE', 'AT', 'AS', 'SHORT', 'POSITION', 'FOR', 'ON'].includes(f)) add({ type: 'hold_at', fix: f }); }
 
     // deviate / turn N left|right (for weather)
     if (/\bdeviat/.test(t) || (/\bturn\b/.test(t) && /weather|around|deviat/.test(t))) {

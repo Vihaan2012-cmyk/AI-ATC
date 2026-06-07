@@ -12,7 +12,24 @@ import {
   type ConnectionHandle,
   type RawBuffer,
 } from 'node-simconnect';
+import {
+  SimObjectType,
+} from 'node-simconnect';
 import type { FlightContext } from '../types.js';
+
+/** A single AI/multiplayer aircraft near the user, read from the sim. */
+export interface TrafficAircraft {
+  /** Best-effort callsign/ident, e.g. "DAL123" or the tail number; falls back to the model title. */
+  callsign: string;
+  /** Aircraft model title (e.g. "Airbus A320neo Delta"). */
+  title: string;
+  lat: number;
+  lon: number;
+  altitudeFt: number;
+  headingTrue: number;
+  groundSpeedKt: number;
+  onGround: boolean;
+}
 
 export interface RunwayInfo {
   primary: string; // e.g. "09L"
@@ -66,6 +83,7 @@ const FREQ_TYPE = [
 const AIRPORT_DEF = 0;
 const STATE_DEF = 1;
 const PARKING_DEF = 2;
+const TRAFFIC_DEF = 3;
 const M_TO_FT = 3.28084;
 
 // MSFS facility enums for TAXI_PARKING.
@@ -167,6 +185,7 @@ export class SimClient {
     this.defineAirportFacility();
     this.defineParking();
     this.defineState();
+    this.defineTraffic();
 
     handle.on('facilityData', (d) => this.onFacilityData(d));
     handle.on('facilityDataEnd', (d) => this.onFacilityDataEnd(d));
@@ -359,6 +378,42 @@ export class SimClient {
     });
   }
 
+  /**
+   * One-shot read of all AI/multiplayer aircraft within `radiusMeters` of the user (default 80 km).
+   * Returns them sorted nearest-first is left to the caller — here we just collect the batch the sim
+   * sends back. The user's own aircraft is excluded. Best-effort: resolves [] on timeout.
+   */
+  fetchTraffic(radiusMeters = 80000): Promise<TrafficAircraft[]> {
+    const handle = this.handle;
+    if (!handle) return Promise.reject(new Error('SimClient not connected'));
+    const reqId = this.nextReqId++;
+    return new Promise<TrafficAircraft[]>((resolve) => {
+      const out: TrafficAircraft[] = [];
+      const timer = setTimeout(() => {
+        handle.removeListener('simObjectDataByType', onData);
+        resolve(out);
+      }, 4000);
+      const onData = (d: { requestID: number; objectID: number; entryNumber: number; outOf: number; data: RawBuffer }) => {
+        if (d.requestID !== reqId) return;
+        try {
+          // objectID 0 is the user's own aircraft — exclude it from the traffic picture.
+          if (d.objectID !== SimConnectConstants.OBJECT_ID_USER) {
+            const t = parseTraffic(d.data);
+            if (t && t.title) out.push(t);
+          }
+        } catch { /* skip a malformed record */ }
+        // outOf === 0 means no objects; otherwise resolve once we've seen the last one.
+        if (d.outOf === 0 || d.entryNumber >= d.outOf) {
+          clearTimeout(timer);
+          handle.removeListener('simObjectDataByType', onData);
+          resolve(out);
+        }
+      };
+      handle.on('simObjectDataByType', onData);
+      handle.requestDataOnSimObjectType(reqId, TRAFFIC_DEF, radiusMeters, SimObjectType.AIRCRAFT);
+    });
+  }
+
   /** Continuously receive live aircraft state (default once per second). Returns an unsubscribe fn. */
   subscribeFlightState(onState: (s: FlightContext) => void, period: SimConnectPeriod = SimConnectPeriod.SECOND): () => void {
     const handle = this.handle;
@@ -427,6 +482,24 @@ export class SimClient {
     h.addToDataDefinition(STATE_DEF, 'SIM ON GROUND', 'bool', SimConnectDataType.INT32);
     h.addToDataDefinition(STATE_DEF, 'BRAKE PARKING INDICATOR', 'bool', SimConnectDataType.INT32);
     h.addToDataDefinition(STATE_DEF, 'COM ACTIVE FREQUENCY:1', 'MHz', SimConnectDataType.FLOAT64);
+  }
+
+  // Traffic: per-aircraft fields read for every AI/MP object in range. Order MUST match
+  // parseTraffic(). Strings are fixed-width in the buffer (STRING32/STRINGV-style); we use
+  // STRING32 for the model title and two STRING32s for the airline/flight-number that compose
+  // a callsign, then the numeric state. SIM ON GROUND last.
+  private defineTraffic(): void {
+    const h = this.handle!;
+    h.addToDataDefinition(TRAFFIC_DEF, 'ATC ID', null, SimConnectDataType.STRING32);
+    h.addToDataDefinition(TRAFFIC_DEF, 'ATC AIRLINE', null, SimConnectDataType.STRING64);
+    h.addToDataDefinition(TRAFFIC_DEF, 'ATC FLIGHT NUMBER', null, SimConnectDataType.STRING32);
+    h.addToDataDefinition(TRAFFIC_DEF, 'TITLE', null, SimConnectDataType.STRING32);
+    h.addToDataDefinition(TRAFFIC_DEF, 'PLANE LATITUDE', 'degrees', SimConnectDataType.FLOAT64);
+    h.addToDataDefinition(TRAFFIC_DEF, 'PLANE LONGITUDE', 'degrees', SimConnectDataType.FLOAT64);
+    h.addToDataDefinition(TRAFFIC_DEF, 'PLANE ALTITUDE', 'feet', SimConnectDataType.FLOAT64);
+    h.addToDataDefinition(TRAFFIC_DEF, 'PLANE HEADING DEGREES TRUE', 'degrees', SimConnectDataType.FLOAT64);
+    h.addToDataDefinition(TRAFFIC_DEF, 'GROUND VELOCITY', 'knots', SimConnectDataType.FLOAT64);
+    h.addToDataDefinition(TRAFFIC_DEF, 'SIM ON GROUND', 'bool', SimConnectDataType.INT32);
   }
 
   private onFacilityData(d: { userRequestId: number; type: FacilityDataType; data: import('node-simconnect').RawBuffer }): void {
@@ -527,6 +600,23 @@ function friendlyParking(group: string, suffix: string, number: number, kind: st
   // Drop meaningless "Ramp 0" type entries.
   if (parts.length === 1 && number <= 0) return '';
   return parts.join(' ');
+}
+
+/** Decode a TRAFFIC_DEF buffer into a TrafficAircraft (read order must match defineTraffic). */
+function parseTraffic(b: RawBuffer): TrafficAircraft | null {
+  const atcId = b.readString32().trim();        // ATC ID (often the tail/registration)
+  const airline = b.readString64().trim();      // ATC AIRLINE (telephony, e.g. "Delta")
+  const flightNo = b.readString32().trim();     // ATC FLIGHT NUMBER
+  const title = b.readString32().trim();        // model title
+  const lat = b.readFloat64();
+  const lon = b.readFloat64();
+  const altitudeFt = b.readFloat64();
+  const headingTrue = b.readFloat64();
+  const groundSpeedKt = b.readFloat64();
+  const onGround = b.readInt32() !== 0;
+  // Compose the best callsign we can: "<Airline> <flight#>" if both, else the ATC ID/tail.
+  const callsign = airline && flightNo ? `${airline} ${flightNo}` : (atcId || flightNo || '');
+  return { callsign, title, lat, lon, altitudeFt, headingTrue, groundSpeedKt, onGround };
 }
 
 /** Decode a STATE_DEF buffer into FlightContext (read order must match defineState). */

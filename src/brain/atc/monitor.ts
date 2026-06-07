@@ -2,6 +2,8 @@
 // deviates from what's expected — altitude bust, no descent started near the field, high on
 // the glidepath, excessive speed, etc. Stateful with cooldowns so it nudges, not nags.
 import { spokenAltitude } from '../util/phraseology.js';
+import { distanceNm } from '../util/geo.js';
+import { trafficAdvisory, type TrafficPicture } from './liveTraffic.js';
 import type { FlightContext, FlightPlan } from '../types.js';
 
 export interface Advisory {
@@ -24,18 +26,15 @@ export interface MonitorContext {
   controller?: string;
   /** ms since the pilot last transmitted (proactive "go ahead" nudges). */
   msSincePilotTx?: number;
+  /** Live traffic picture (from SimClient.fetchTraffic + buildTrafficPicture), if available. */
+  traffic?: TrafficPicture | null;
 }
 
 const COOLDOWN_MS = 60000;       // don't repeat the same callout within a minute
 const ALT_BUST_FT = 350;         // tolerance before "verify your altitude"
 const DESCENT_TRIGGER_NM = 120;  // within this of dest and still at cruise => "start your descent"
 
-function gcDistNm(aLat: number, aLon: number, bLat: number, bLon: number): number {
-  const R = 3440.065, t = Math.PI / 180;
-  const dLat = (bLat - aLat) * t, dLon = (bLon - aLon) * t;
-  const s = Math.sin(dLat / 2) ** 2 + Math.cos(aLat * t) * Math.cos(bLat * t) * Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
-}
+const TRAFFIC_ALERT_NM = 8;      // call live traffic when a co-altitude conflict is within this
 
 export class ReactiveMonitor {
   private lastFired = new Map<string, number>();
@@ -45,7 +44,7 @@ export class ReactiveMonitor {
   /** Distance to destination in nm from a live sample, if the dest position is known. */
   destDistance(s: FlightContext): number | null {
     if (this.fp.destLat == null || this.fp.destLon == null) return null;
-    return gcDistNm(s.latitude, s.longitude, this.fp.destLat, this.fp.destLon);
+    return distanceNm(s.latitude, s.longitude, this.fp.destLat, this.fp.destLon);
   }
 
   /**
@@ -65,6 +64,17 @@ export class ReactiveMonitor {
           key: 'alt_bust',
           text: `check altitude — you're ${Math.round(Math.abs(diff))} feet ${dir} your assigned ${spokenAltitude(ctx.assignedAltitudeFt)}.`,
         });
+      }
+    }
+
+    // 1b) Live traffic: a real AI/MP aircraft is close and near our altitude -> issue an advisory.
+    const conflict = ctx.traffic?.primary ?? null;
+    if (conflict && conflict.rangeNm <= TRAFFIC_ALERT_NM) {
+      const adv = trafficAdvisory(conflict);
+      if (adv) {
+        // Key off the clock+range bucket so a moving target re-triggers as it closes, but the
+        // identical picture doesn't nag within the cooldown window.
+        candidates.push({ key: `traffic_${conflict.clock}_${Math.round(conflict.rangeNm)}`, text: `${adv}.` });
       }
     }
 

@@ -16,6 +16,7 @@ import { shortenAirportName, spokenRunway, parseSpokenAltitudeFt } from '../util
 import { buildHold } from './holds.js';
 import { parseEnrouteRequests } from '../llm/freeflow.js';
 import { composeEnrouteReply, assignedAltitude } from './enroute.js';
+import { trafficAdvisory, type TrafficPicture } from './liveTraffic.js';
 import { parseMetarDetail, type MetarInfo } from '../sim/weather.js';
 
 interface Controller {
@@ -52,6 +53,8 @@ export class ControllerSession {
   private declaredEmergency = false;
   /** True after a reply that expected a readback (so the next pilot call is scored). */
   private awaitingReadback = false;
+  /** Latest live-traffic picture from the sim, for "say traffic" queries + traffic-aware replies. */
+  private traffic: TrafficPicture | null = null;
 
   constructor(
     private fp: FlightPlan,
@@ -91,6 +94,9 @@ export class ControllerSession {
   /** Turn frequency enforcement on/off (e.g. from a realism setting). */
   setEnforceFrequency(on: boolean): void { this.enforceFrequency = on; }
 
+  /** Feed the latest live-traffic picture (from the sim) for traffic queries + advisories. */
+  setTraffic(picture: TrafficPicture | null): void { this.traffic = picture; }
+
   private freqFor(kind: ControllerKind): number | null {
     const dep = this.fp.origin, arr = this.fp.destination;
     const apt = this.arriving ? arr : dep;
@@ -123,6 +129,10 @@ export class ControllerSession {
     }
     if (/\bhold(ing)?\b|hold as published|enter the hold/i.test(pilotText)) {
       return this.holdReply();
+    }
+    // "say traffic" / "any traffic" / "traffic advisories" -> read back the live traffic picture.
+    if (/\b(say|any|request|report)\s+traffic\b|\btraffic\s+(advisor|in sight|call)/i.test(pilotText)) {
+      return this.trafficReply();
     }
     // Free-flow enroute requests (deviate/direct/climb/descend/speed) — handled when airborne and
     // talking to an enroute/approach controller, where such requests make sense.
@@ -235,6 +245,20 @@ export class ControllerSession {
       text: `${this.spokenCs}, ${hold.text}`,
       expecting: 'readback',
     };
+  }
+
+  /** Answer a pilot traffic query from the live picture, or "no reported traffic". */
+  private trafficReply(): Reply {
+    const from = STATION_LABELS[this.kind] ?? this.lastFrom;
+    const freq = this.activeFreqMhz;
+    const primary = this.traffic?.primary ?? this.traffic?.nearby[0] ?? null;
+    const adv = trafficAdvisory(primary);
+    const more = this.traffic ? this.traffic.nearby.length - (primary ? 1 : 0) : 0;
+    const tail = more > 0 ? ` Additional traffic in your area, ${more} target${more > 1 ? 's' : ''}.` : '';
+    const text = adv
+      ? `${this.spokenCs}, ${adv}.${tail}`
+      : `${this.spokenCs}, no reported traffic in your immediate area.`;
+    return { from, freqMhz: freq, text, expecting: 'none' };
   }
 
   private flightFollowingReply(): Reply {

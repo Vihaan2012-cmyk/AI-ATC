@@ -20,6 +20,7 @@
   "build": {
     "appId": "com.msfsaiatc.app",
     "productName": "Air Traffic Control",
+    "executableName": "Air Traffic Control",
     "directories": {
       "output": "release",
       "buildResources": "build"
@@ -58,7 +59,10 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Air Traffic Control"
+      "menuCategory": false,
+      "shortcutName": "Air Traffic Control",
+      "runAfterFinish": true,
+      "include": "build/installer.nsh"
     }
   }
 }

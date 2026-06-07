@@ -150,6 +150,10 @@ function createWindow() {
   });
 }
 
+// Identify the app to Windows by the same id as the NSIS appId, so the Start Menu shortcut,
+// taskbar grouping, and Windows search ("press Win, type Air Traffic Control") resolve to it.
+if (process.platform === 'win32') app.setAppUserModelId('com.msfsaiatc.app');
+
 app.whenReady().then(createWindow);
 app.on('window-all-closed', () => app.quit());
 app.on('before-quit', stopBrain);

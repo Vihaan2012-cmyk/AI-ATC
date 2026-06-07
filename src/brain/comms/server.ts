@@ -18,6 +18,7 @@ import { spokenFlightCallsign } from '../util/aircraft.js';
 import { HoppieClient } from './hoppie.js';
 import { ChatterGenerator, type ChatterLevel } from '../atc/chatter.js';
 import { ReactiveMonitor } from '../atc/monitor.js';
+import { buildTrafficPicture, type TrafficPicture } from '../atc/liveTraffic.js';
 import { applyPhraseology, type PhraseologyProfile } from '../atc/phraseologyProfile.js';
 import { airportCoords } from '../navdata/airports.js';
 import type { ControllerKind } from '../types.js';
@@ -411,6 +412,11 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
     const monitor = new ReactiveMonitor(deps.fp);
     const cs = spokenFlightCallsign(deps.fp);
     let lastPhase = '';
+    // Living traffic: poll the sim's AI/MP aircraft on a slow cadence (it's heavier than a state
+    // read), build the relative picture against the latest state, and keep it for callouts + queries.
+    let trafficPicture: TrafficPicture | null = null;
+    let lastTrafficPoll = 0;
+    const sim = deps.sim;
     try {
       deps.sim.subscribeFlightState((s) => {
         lastPos = { lat: s.latitude, lon: s.longitude, hdg: s.headingTrue,
@@ -418,6 +424,25 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
         broadcast({ type: 'position', ...lastPos });
         // Frequency awareness: tell the session what COM1 is tuned to.
         if (s.com1Mhz) deps.session.setCom1(s.com1Mhz);
+
+        // Refresh the traffic picture ~every 5s, then hand it to the session + UI.
+        const now = Date.now();
+        if (now - lastTrafficPoll > 5000) {
+          lastTrafficPoll = now;
+          sim.fetchTraffic().then((list) => {
+            trafficPicture = buildTrafficPicture(s, list);
+            deps.session.setTraffic(trafficPicture);
+            broadcast({
+              type: 'traffic',
+              count: trafficPicture.nearby.length,
+              aircraft: trafficPicture.nearby.slice(0, 12).map((t) => ({
+                callsign: t.callsign, lat: t.lat, lon: t.lon, altFt: Math.round(t.altitudeFt),
+                hdg: Math.round(t.headingTrue), rangeNm: Math.round(t.rangeNm * 10) / 10,
+                clock: t.clock, vertical: t.vertical, onGround: t.onGround,
+              })),
+            });
+          }).catch(() => { /* sim busy / no traffic */ });
+        }
 
         const phase = tracker.update(s);
         if (phase !== lastPhase) {
@@ -434,6 +459,7 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
           phase,
           controller: deps.session.activeKind,
           msSincePilotTx: Date.now() - lastPilotTxAt,
+          traffic: trafficPicture,
         }, Date.now());
         if (adv) {
           broadcast({ type: 'atc_tx', from: STATION_LABEL[deps.session.activeKind] ?? 'ATC', freq: deps.session.activeFreqMhz, text: `${cs}, ${adv.text}`, expecting: 'none' });
