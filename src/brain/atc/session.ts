@@ -192,7 +192,15 @@ export class ControllerSession {
 
     // A correction ("negative ... I say again") means the readback was wrong; otherwise correct.
     if (this.awaitingReadback) {
-      if (!/\bnegative\b|i say again/i.test(reply.text)) this.readbacksCorrect += 1;
+      const wasCorrect = !/\bnegative\b|i say again/i.test(reply.text);
+      if (wasCorrect) {
+        this.readbacksCorrect += 1;
+        // Explicit "readback correct" acknowledgement — only when the controller isn't already
+        // issuing a new instruction (expecting another readback), so it doesn't get spammy.
+        if (reply.expecting !== 'readback' && !/readback correct/i.test(reply.text)) {
+          reply.text = `${this.spokenCs}, readback correct. ${reply.text.replace(new RegExp('^' + this.spokenCs + ',?\\s*', 'i'), '')}`.trim();
+        }
+      }
     }
     this.awaitingReadback = reply.expecting === 'readback';
 
