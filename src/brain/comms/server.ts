@@ -514,6 +514,7 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
           controller: deps.session.activeKind,
           msSincePilotTx: Date.now() - lastPilotTxAt,
           traffic: to.advisories ? trafficPicture : null,
+          windshear: /\b(WS|\+TSRA|\+TS|SQ)\b/.test(deps.weather[deps.fp.destination]?.raw ?? ''),
         }, Date.now());
         if (adv) {
           broadcast({ type: 'atc_tx', from: STATION_LABEL[deps.session.activeKind] ?? 'ATC', freq: deps.session.activeFreqMhz, text: `${cs}, ${adv.text}`, expecting: 'none' });

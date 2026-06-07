@@ -29,6 +29,8 @@ export interface MonitorContext {
   msSincePilotTx?: number;
   /** Live traffic picture (from SimClient.fetchTraffic + buildTrafficPicture), if available. */
   traffic?: TrafficPicture | null;
+  /** True if the destination METAR reports wind shear / convective activity near the field. */
+  windshear?: boolean;
 }
 
 const COOLDOWN_MS = 60000;       // don't repeat the same callout within a minute
@@ -133,6 +135,11 @@ export class ReactiveMonitor {
       } else if (s.iasKt > 210) {
         candidates.push({ key: 'fast', text: `reduce speed, you're fast for the approach.` });
       }
+    }
+
+    // 3b) Wind-shear / convective alert on approach when the destination METAR shows it.
+    if (ctx.windshear && ctx.arriving && ctx.destDistNm != null && ctx.destDistNm < 20 && s.altitudeAglFt < 5000) {
+      candidates.push({ key: 'windshear', text: `wind shear advisories in effect at the field — use caution on final.` });
     }
 
     // --- PROACTIVE: the controller initiates, rather than waiting for you ---
