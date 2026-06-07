@@ -402,7 +402,7 @@ var STATION={delivery:'Clearance Delivery',ground:'Ground',tower:'Tower',departu
 var logEl=$('log');
 
 // ---- voice (offline system TTS, distinct voice per controller) ----
-var voiceCfg = { enabled:true, rate:1.05, vol:1, piper:false };
+var voiceCfg = { enabled:false, rate:1.05, vol:1, piper:false };
 var curKind = 'delivery';
 var sysVoices = [];
 function loadVoices(){ try{ sysVoices = window.speechSynthesis ? speechSynthesis.getVoices() : []; }catch(e){} }
@@ -845,7 +845,7 @@ function applyAppearance(s){
 }
 function loadSetup(){
   // appearance
-  var s = { accent:'#6f8cff', opacity:1, fontScale:1, alwaysOnTop:true, voiceEnabled:true, voiceRate:1.05, voiceVol:1, voicePiper:false };
+  var s = { accent:'#6f8cff', opacity:1, fontScale:1, alwaysOnTop:true, voiceEnabled:false, voiceRate:1.05, voiceVol:1, voicePiper:false };
   function fill(){
     $('setAccent').value=s.accent; $('setOpacity').value=s.opacity; $('setFont').value=s.fontScale; $('setPin').checked=!!s.alwaysOnTop;
     $('setVoice').checked = s.voiceEnabled!==false; $('setVoiceRate').value = s.voiceRate||1.05; $('setVoiceVol').value = (s.voiceVol!=null?s.voiceVol:1);
