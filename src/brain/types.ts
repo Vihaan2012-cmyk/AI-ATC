@@ -89,6 +89,7 @@ export type PilotIntentType =
   | 'request_pushback'
   | 'request_taxi'
   | 'ready_for_departure'
+  | 'ready_with_traffic'
   | 'go_around'
   | 'request_flight_following'
   | 'request_pattern'

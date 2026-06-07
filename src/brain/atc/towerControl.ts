@@ -1,5 +1,4 @@
-// Tower control. Departure role: takeoff clearance, hand off to Departure.
-// Arrival role: landing clearance, then hand off to Ground (taxi in).
+// Tower control: hold-short sequencing (departure), land-behind sequencing (arrival), and handoff to departure.
 import type { FlightPlan, Reply } from '../types.js';
 import type { Navdata } from '../navdata/navdata.js';
 import type { LlmClient } from '../llm/ollama.js';
@@ -7,6 +6,7 @@ import { parseIntent } from '../llm/nlu.js';
 import { spokenFreq, spokenRunway, shortenAirportName } from '../util/phraseology.js';
 import { spokenFlightCallsign } from '../util/aircraft.js';
 import { makeSequence, sequencePhrase } from './traffic.js';
+import { composeConditionalClause, hasTrafficInSight } from './conditional.js';
 
 type State = 'idle' | 'awaiting_takeoff_readback' | 'landing' | 'complete';
 
@@ -56,8 +56,8 @@ export class TowerControl {
     if (this.state === 'awaiting_takeoff_readback') return this.handleTakeoffReadback(pilotText);
     if (this.state === 'complete') return this.handoffToDeparture();
 
-    if (intent.intent === 'ready_for_departure' || /\b(ready|holding short|takeoff)\b/i.test(pilotText)) {
-      return this.issueTakeoff();
+    if (intent.intent === 'ready_for_departure' || /\b(ready|holding short|linedup|line up|takeoff)\b/i.test(pilotText)) {
+      return this.issueTakeoff(pilotText);
     }
     return this.say('report ready for departure.', 'none');
   }
@@ -78,7 +78,7 @@ export class TowerControl {
   }
 
   // --- departure ---
-  private issueTakeoff(): Reply {
+  private issueTakeoff(pilotText: string): Reply {
     const rwy = this.runway ? `Runway ${spokenRunway(this.runway)}, ` : '';
     // First "ready" with traffic ahead -> hold short + sequence. The traffic clears,
     // then the pilot's next "ready" call gets the actual takeoff clearance.
@@ -94,13 +94,22 @@ export class TowerControl {
       }
       this.sequenced = true;
     }
+    // Second "ready" after hold-short. If pilot reports traffic in sight, issue conditional clearance.
+    if (hasTrafficInSight(pilotText)) {
+      const seq = makeSequence(this.airport, this.fp.callsign, 'departure');
+      if (seq.ahead) {
+        this.state = 'awaiting_takeoff_readback';
+        const conditional = composeConditionalClause(seq.ahead, 'takeoff');
+        return { from: this.stationLabel, freqMhz: this.towerFreq, text: `${this.spokenCs}, ${rwy}${conditional}.`, expecting: 'readback' };
+      }
+    }
     this.state = 'awaiting_takeoff_readback';
     return { from: this.stationLabel, freqMhz: this.towerFreq, text: `${this.spokenCs}, ${rwy}cleared for takeoff.`, expecting: 'readback' };
   }
 
   private handleTakeoffReadback(pilotText: string): Reply {
     const runwayOk = !this.runway || runwayKey(pilotText).includes(runwayKey(this.runway));
-    if (runwayOk || /takeoff/i.test(pilotText)) {
+    if (runwayOk || /takeoff|behind/.test(pilotText)) {
       this.state = 'complete';
       return this.handoffToDeparture();
     }
@@ -130,6 +139,11 @@ export class TowerControl {
       this.state = 'landing';
       const rwy = this.runway ? `Runway ${spokenRunway(this.runway)}, ` : '';
       const seq = makeSequence(this.airport, this.fp.callsign, 'arrival');
+      // If pilot reports traffic in sight during sequencing, use conditional phrasing.
+      if (seq.number > 1 && seq.ahead && hasTrafficInSight(pilotText)) {
+        const conditional = composeConditionalClause(seq.ahead, 'landing');
+        return { from: this.stationLabel, freqMhz: this.towerFreq, text: `${this.spokenCs}, ${rwy}${conditional}.`, expecting: 'none' };
+      }
       // Sequenced behind arriving traffic but still cleared to land (US-style "number two, cleared to land").
       const seqText = seq.number > 1 && seq.ahead
         ? `${sequencePhrase(seq).trim()} ${this.spokenCs}, ${rwy}cleared to land.`

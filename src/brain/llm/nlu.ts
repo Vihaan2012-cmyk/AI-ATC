@@ -55,12 +55,15 @@ function ruleParse(text: string): PilotIntent {
   if (/\bhold(ing)?\b|hold as published|enter the hold/.test(t)) {
     return { intent: 'request_hold', atisInfo, confidence: 0.8, via: 'rules' };
   }
+  if (/\b(ready|wilco).*traffic\s+(in\s+)?sight|traffic\s+(observed|in sight)|\bsee\s+traffic|\bhave\s+traffic|visual(ly|\s+on)|tally/.test(t)) {
+    return { intent: 'ready_with_traffic', atisInfo, confidence: 0.85, via: 'rules' };
+  }
   return { intent: 'unknown', atisInfo, confidence: 0.2, via: 'rules' };
 }
 
 function normIntent(v: unknown): PilotIntentType {
   const allowed: PilotIntentType[] = [
-    'request_ifr_clearance', 'request_pushback', 'request_taxi', 'ready_for_departure', 'go_around',
+    'request_ifr_clearance', 'request_pushback', 'request_taxi', 'ready_for_departure', 'ready_with_traffic', 'go_around',
     'request_flight_following', 'request_pattern', 'touch_and_go', 'full_stop', 'request_hold', 'readback', 'unknown',
   ];
   return allowed.includes(v as PilotIntentType) ? (v as PilotIntentType) : 'unknown';
@@ -68,7 +71,7 @@ function normIntent(v: unknown): PilotIntentType {
 
 const INTENT_PROMPT = (text: string) =>
   `You classify a single pilot radio transmission. Return ONLY JSON:
-{"intent": one of ["request_ifr_clearance","request_pushback","request_taxi","ready_for_departure","go_around","request_flight_following","request_pattern","touch_and_go","full_stop","request_hold","readback","unknown"], "atis_info": single letter A-Z or null}
+{"intent": one of ["request_ifr_clearance","request_pushback","request_taxi","ready_for_departure","ready_with_traffic","go_around","request_flight_following","request_pattern","touch_and_go","full_stop","request_hold","readback","unknown"], "atis_info": single letter A-Z or null}
 
 Pilot: "${text}"
 JSON:`;

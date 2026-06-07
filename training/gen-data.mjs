@@ -34,7 +34,7 @@ const TEACHER_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5:14b';
 
 // ---- the EXACT prompt the brain sends (must match src/brain/llm/nlu.ts) ----
 const INTENTS = [
-  'request_ifr_clearance', 'request_pushback', 'request_taxi', 'ready_for_departure', 'go_around',
+  'request_ifr_clearance', 'request_pushback', 'request_taxi', 'ready_for_departure', 'ready_with_traffic', 'go_around',
   'request_flight_following', 'request_pattern', 'touch_and_go', 'full_stop', 'request_hold', 'readback', 'unknown',
 ];
 const intentPrompt = (text) =>
