@@ -141,6 +141,16 @@ export function spokenCallsign(callsign: string, telephony?: string): string {
   return phonetic(cs);
 }
 
+/**
+ * Compose a handoff instruction based on style.
+ * action='contact': "contact Tower one one eight point three"
+ * action='monitor': "monitor Tower one one eight point three"
+ */
+export function handoffPhrase(station: string, freqMhz: number | null | undefined, action: 'contact' | 'monitor' = 'contact'): string {
+  const freq = freqMhz ? ` on ${spokenFreq(freqMhz)}` : '';
+  return `${action} ${station}${freq}`;
+}
+
 /** "SEATTLE TACOMA INTL" -> "Seattle Tacoma". Falls back to ICAO if no name. */
 export function shortenAirportName(name: string | undefined, fallbackIcao: string): string {
   if (!name) return fallbackIcao;

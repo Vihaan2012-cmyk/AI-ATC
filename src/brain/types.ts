@@ -157,6 +157,7 @@ export interface AssignedState {
   speedKt?: number;         // assigned speed
   nextFreqMhz?: number;     // frequency to contact next (handoff)
   nextStation?: string;     // who to contact next, e.g. "Departure"
+  nextAction?: 'contact' | 'monitor'; // handoff style: 'contact' (check-in required) or 'monitor' (no check-in)
 }
 
 /** A controller -> pilot reply. */

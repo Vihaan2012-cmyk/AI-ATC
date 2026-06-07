@@ -5,7 +5,7 @@
 import type { FlightPlan, Reply } from '../types.js';
 import type { Navdata } from '../navdata/navdata.js';
 import type { LlmClient } from '../llm/ollama.js';
-import { spokenAltitude, spokenDigits, spokenFreq, spokenRunway, shortenAirportName } from '../util/phraseology.js';
+import { spokenAltitude, spokenDigits, spokenFreq, spokenRunway, shortenAirportName, handoffPhrase } from '../util/phraseology.js';
 import { spokenFlightCallsign } from '../util/aircraft.js';
 import { readbackItems, checkReadback, correctionPhrase, type StrictnessLevel } from './compliance.js';
 
