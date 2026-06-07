@@ -18,6 +18,7 @@ import { spokenFlightCallsign } from '../util/aircraft.js';
 import { HoppieClient } from './hoppie.js';
 import { ChatterGenerator, type ChatterLevel } from '../atc/chatter.js';
 import { isCongested, standbyPhrase } from '../atc/congestion.js';
+import { isBlocked, blockedPhrase } from '../atc/blocked.js';
 import { ReactiveMonitor } from '../atc/monitor.js';
 import { buildTrafficPicture, type TrafficPicture } from '../atc/liveTraffic.js';
 import { applyPhraseology, type PhraseologyProfile } from '../atc/phraseologyProfile.js';
@@ -404,9 +405,15 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
           return;
         }
         try {
+          pilotTxCount += 1;
+          // Stuck-mic / blocked transmission: occasionally (rarer than congestion) the call is cut
+          // off and ATC asks you to say again — the request is NOT processed, you must repeat.
+          if (isBlocked(pilotTxCount, deps.chatter ?? 'low') && deps.session.activeKind) {
+            send(ws, { type: 'atc_tx', from: STATION_LABEL[deps.session.activeKind] ?? 'ATC', freq: deps.session.activeFreqMhz, text: `${spokenFlightCallsign(deps.fp)}, ${blockedPhrase()}`, expecting: 'none' });
+            return;
+          }
           // Frequency congestion: on a busy frequency the controller occasionally says "stand by"
           // before getting to you. Deterministic cadence by chatter level; never on readback turns.
-          pilotTxCount += 1;
           if (isCongested(pilotTxCount, deps.chatter ?? 'low') && deps.session.activeKind) {
             send(ws, { type: 'atc_tx', from: STATION_LABEL[deps.session.activeKind] ?? 'ATC', freq: deps.session.activeFreqMhz, text: standbyPhrase(spokenFlightCallsign(deps.fp)), expecting: 'none' });
           }
