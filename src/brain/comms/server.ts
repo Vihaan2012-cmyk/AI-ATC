@@ -19,6 +19,8 @@ import { HoppieClient } from './hoppie.js';
 import { ChatterGenerator, type ChatterLevel } from '../atc/chatter.js';
 import { isCongested, standbyPhrase } from '../atc/congestion.js';
 import { isBlocked, blockedPhrase } from '../atc/blocked.js';
+import { buildFreqCard } from '../atc/freqCard.js';
+import { SCENARIOS } from '../atc/scenarios.js';
 import { ReactiveMonitor } from '../atc/monitor.js';
 import { buildTrafficPicture, type TrafficPicture } from '../atc/liveTraffic.js';
 import { applyPhraseology, type PhraseologyProfile } from '../atc/phraseologyProfile.js';
@@ -95,6 +97,7 @@ export interface CommsDeps {
   session: ControllerSession;
   fp: FlightPlan;
   sim: SimClient | null;
+  nav: import('../navdata/navdata.js').Navdata;
   weather: Record<string, MetarInfo>;
   /** Auto-tune COM1 on handoff: 'swap' (active), 'standby' (standby only), or 'off'. */
   autoTuneCom?: 'swap' | 'standby' | 'off';
@@ -325,6 +328,20 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store',
         'access-control-allow-origin': '*' });
       res.end(JSON.stringify(badges));
+      return;
+    }
+    // Frequency reference card for the active field (all freqs from navdata).
+    if (req.method === 'GET' && path === '/api/freqcard') {
+      const apt = deps.session.isArriving ? deps.fp.destination : deps.fp.origin;
+      const card = buildFreqCard(deps.nav.getFrequencies(apt).map((f) => ({ type: f.type, mhz: f.mhz })));
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store', 'access-control-allow-origin': '*' });
+      res.end(JSON.stringify({ airport: apt, frequencies: card }));
+      return;
+    }
+    // Curated training scenarios.
+    if (req.method === 'GET' && path === '/api/scenarios') {
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store', 'access-control-allow-origin': '*' });
+      res.end(JSON.stringify(SCENARIOS));
       return;
     }
     res.writeHead(404);

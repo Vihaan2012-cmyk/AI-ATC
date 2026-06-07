@@ -11,7 +11,7 @@ async function main() {
   console.log(`LLM: ${app.llmLabel} | Navdata: ${app.navLabel}`);
 
   startCommsServer(config.wsPort, {
-    session: app.session, fp: app.fp, sim: app.sim, weather: app.weather,
+    session: app.session, fp: app.fp, sim: app.sim, nav: app.nav, weather: app.weather,
     autoTuneCom: config.autoTuneCom,
     hoppieLogon: config.hoppieLogon,
     chatter: config.chatter,
