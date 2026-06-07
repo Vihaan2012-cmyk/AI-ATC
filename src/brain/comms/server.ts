@@ -103,6 +103,8 @@ export interface CommsDeps {
   /** Regional phraseology + controller tone. */
   region?: import('../atc/phraseologyProfile.js').Region;
   tone?: import('../atc/phraseologyProfile.js').Tone;
+  /** Opt-in: poll live AI/MP traffic via SimConnect. Off by default (can destabilize the sim). */
+  liveTraffic?: boolean;
 }
 
 function fpInfoMessage(fp: FlightPlan, weather: Record<string, MetarInfo>) {
@@ -429,8 +431,9 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
         if (s.com1Mhz) deps.session.setCom1(s.com1Mhz);
 
         // Refresh the traffic picture ~every 5s, then hand it to the session + UI.
+        // Off unless explicitly enabled (LIVE_TRAFFIC=1) — reading AI objects can destabilize MSFS.
         const now = Date.now();
-        if (now - lastTrafficPoll > 5000) {
+        if (deps.liveTraffic && now - lastTrafficPoll > 5000) {
           lastTrafficPoll = now;
           sim.fetchTraffic().then((list) => {
             trafficPicture = buildTrafficPicture(s, list);

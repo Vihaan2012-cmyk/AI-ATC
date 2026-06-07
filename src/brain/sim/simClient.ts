@@ -433,8 +433,8 @@ export class SimClient {
         try {
           // objectID 0 is the user's own aircraft — exclude it from the traffic picture.
           if (d.objectID !== SimConnectConstants.OBJECT_ID_USER) {
-            const t = parseTraffic(d.data);
-            if (t && t.title) out.push(t);
+            const t = parseTraffic(d.data, d.objectID);
+            if (t) out.push(t);
           }
         } catch { /* skip a malformed record */ }
         // outOf === 0 means no objects; otherwise resolve once we've seen the last one.
@@ -519,16 +519,12 @@ export class SimClient {
     h.addToDataDefinition(STATE_DEF, 'COM ACTIVE FREQUENCY:1', 'MHz', SimConnectDataType.FLOAT64);
   }
 
-  // Traffic: per-aircraft fields read for every AI/MP object in range. Order MUST match
-  // parseTraffic(). Strings are fixed-width in the buffer (STRING32/STRINGV-style); we use
-  // STRING32 for the model title and two STRING32s for the airline/flight-number that compose
-  // a callsign, then the numeric state. SIM ON GROUND last.
+  // Traffic: NUMERIC-ONLY per-aircraft fields for every AI/MP object in range. Order MUST match
+  // parseTraffic(). We deliberately avoid string vars (ATC ID/AIRLINE/TITLE): mixing fixed-width
+  // strings into a requestDataOnSimObjectType definition is fragile and was crashing MSFS on connect.
+  // The callsign is synthesized from the object id instead — positions are all we need for advisories.
   private defineTraffic(): void {
     const h = this.handle!;
-    h.addToDataDefinition(TRAFFIC_DEF, 'ATC ID', null, SimConnectDataType.STRING32);
-    h.addToDataDefinition(TRAFFIC_DEF, 'ATC AIRLINE', null, SimConnectDataType.STRING64);
-    h.addToDataDefinition(TRAFFIC_DEF, 'ATC FLIGHT NUMBER', null, SimConnectDataType.STRING32);
-    h.addToDataDefinition(TRAFFIC_DEF, 'TITLE', null, SimConnectDataType.STRING32);
     h.addToDataDefinition(TRAFFIC_DEF, 'PLANE LATITUDE', 'degrees', SimConnectDataType.FLOAT64);
     h.addToDataDefinition(TRAFFIC_DEF, 'PLANE LONGITUDE', 'degrees', SimConnectDataType.FLOAT64);
     h.addToDataDefinition(TRAFFIC_DEF, 'PLANE ALTITUDE', 'feet', SimConnectDataType.FLOAT64);
@@ -638,20 +634,17 @@ function friendlyParking(group: string, suffix: string, number: number, kind: st
 }
 
 /** Decode a TRAFFIC_DEF buffer into a TrafficAircraft (read order must match defineTraffic). */
-function parseTraffic(b: RawBuffer): TrafficAircraft | null {
-  const atcId = b.readString32().trim();        // ATC ID (often the tail/registration)
-  const airline = b.readString64().trim();      // ATC AIRLINE (telephony, e.g. "Delta")
-  const flightNo = b.readString32().trim();     // ATC FLIGHT NUMBER
-  const title = b.readString32().trim();        // model title
+function parseTraffic(b: RawBuffer, objectId: number): TrafficAircraft | null {
+  // Numeric-only read (must match defineTraffic) — no string vars, which crashed the sim.
   const lat = b.readFloat64();
   const lon = b.readFloat64();
   const altitudeFt = b.readFloat64();
   const headingTrue = b.readFloat64();
   const groundSpeedKt = b.readFloat64();
   const onGround = b.readInt32() !== 0;
-  // Compose the best callsign we can: "<Airline> <flight#>" if both, else the ATC ID/tail.
-  const callsign = airline && flightNo ? `${airline} ${flightNo}` : (atcId || flightNo || '');
-  return { callsign, title, lat, lon, altitudeFt, headingTrue, groundSpeedKt, onGround };
+  // No callsign/title available without string vars; synthesize a stable label from the object id.
+  const callsign = `Traffic ${objectId}`;
+  return { callsign, title: callsign, lat, lon, altitudeFt, headingTrue, groundSpeedKt, onGround };
 }
 
 /** Decode a STATE_DEF buffer into FlightContext (read order must match defineState). */

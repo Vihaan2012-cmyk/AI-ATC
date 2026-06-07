@@ -36,6 +36,11 @@ export const config = {
   simbriefUsername: process.env.SIMBRIEF_USERNAME ?? '',
   /** SimBrief numeric Pilot ID (alternative to username; takes priority if set). */
   simbriefUserid: process.env.SIMBRIEF_USERID ?? '',
+  /**
+   * Live AI/MP traffic polling via SimConnect SimObjects. OFF by default — reading other aircraft
+   * has been observed to destabilize some setups. Set LIVE_TRAFFIC=1 to opt in.
+   */
+  liveTraffic: process.env.LIVE_TRAFFIC === '1' || process.env.LIVE_TRAFFIC === 'true',
   /** Path to Navigraph DFD .s3db (or an aircraft's DFD nav DB). Empty/missing -> skipped. */
   navdataPath: process.env.NAVDATA_PATH ?? '',
   /**

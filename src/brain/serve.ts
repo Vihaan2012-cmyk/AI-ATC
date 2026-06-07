@@ -18,6 +18,7 @@ async function main() {
     statePath: config.sessionStatePath,
     region: config.region,
     tone: config.tone,
+    liveTraffic: config.liveTraffic,
   });
   console.log('Widget can now connect. Ctrl+C to stop.');
 

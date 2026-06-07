@@ -26,7 +26,7 @@ const widgetPath = PACKAGED
   : path.join(__dirname, '..', 'widget', 'atc-widget.html');
 const wizardPath = path.join(__dirname, 'wizard.html');
 
-const DEFAULT_SETTINGS = { accent: '#6f8cff', opacity: 1, fontScale: 1, alwaysOnTop: true, voiceEnabled: true, voiceRate: 1.05, voiceVol: 1, voicePiper: false };
+const DEFAULT_SETTINGS = { accent: '#6f8cff', opacity: 1, fontScale: 1, alwaysOnTop: true, voiceEnabled: false, voiceRate: 1.05, voiceVol: 1, voicePiper: false };
 
 function readJson(file, fallback) { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; } }
 function writeJson(file, obj) { try { fs.writeFileSync(file, JSON.stringify(obj, null, 2)); } catch { /* ignore */ } }
