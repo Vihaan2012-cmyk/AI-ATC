@@ -107,6 +107,23 @@ export interface PilotIntent {
   via: 'rules' | 'llm';
 }
 
+/** A single enroute request parsed from free-flow speech (one transmission may have several). */
+export type EnrouteRequestType =
+  | 'climb' | 'descend' | 'direct' | 'deviate' | 'speed' | 'hold_at' | 'higher' | 'lower';
+
+export interface EnrouteRequest {
+  type: EnrouteRequestType;
+  /** Target altitude in ft (climb/descend). */
+  altitudeFt?: number;
+  /** Fix/waypoint for direct-to or hold. */
+  fix?: string;
+  /** Deviation side + degrees (deviate). */
+  side?: 'left' | 'right';
+  degrees?: number;
+  /** Speed in knots (speed). */
+  speedKt?: number;
+}
+
 /** A built IFR clearance (CRAFT). */
 export interface Clearance {
   callsign: string;

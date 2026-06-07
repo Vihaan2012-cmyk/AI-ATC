@@ -14,6 +14,8 @@ import { ApproachControl } from './approachControl.js';
 import { spokenFlightCallsign } from '../util/aircraft.js';
 import { shortenAirportName, spokenRunway, parseSpokenAltitudeFt } from '../util/phraseology.js';
 import { buildHold } from './holds.js';
+import { parseEnrouteRequests } from '../llm/freeflow.js';
+import { composeEnrouteReply, assignedAltitude } from './enroute.js';
 import { parseMetarDetail, type MetarInfo } from '../sim/weather.js';
 
 interface Controller {
@@ -121,6 +123,24 @@ export class ControllerSession {
     }
     if (/\bhold(ing)?\b|hold as published|enter the hold/i.test(pilotText)) {
       return this.holdReply();
+    }
+    // Free-flow enroute requests (deviate/direct/climb/descend/speed) — handled when airborne and
+    // talking to an enroute/approach controller, where such requests make sense.
+    if (this.kind === 'center' || this.kind === 'departure' || this.kind === 'approach') {
+      const reqs = parseEnrouteRequests(pilotText);
+      if (reqs.length > 0) {
+        const ctx = { altitudeFt: this.lastAssignedAltFt ?? undefined, cruiseFt: this.fp.cruiseAltitudeFt };
+        const body = composeEnrouteReply(reqs, ctx);
+        if (body) {
+          const alt = assignedAltitude(reqs, ctx);
+          if (alt != null) this.lastAssignedAltFt = alt;
+          return {
+            from: STATION_LABELS[this.kind] ?? 'ATC', freqMhz: this.activeFreqMhz,
+            text: `${this.spokenCs}, ${body}`, expecting: 'readback',
+            assigned: alt != null ? { altitudeFt: alt } : undefined,
+          };
+        }
+      }
     }
     // VFR pattern work routes to Tower regardless of the current position.
     if (/closed traffic|remain(ing)? in the pattern|stay in the pattern|pattern work|touch.?and.?go|low approach|the option|enter (the )?(left|right) (down ?wind|base)/i.test(pilotText)) {
