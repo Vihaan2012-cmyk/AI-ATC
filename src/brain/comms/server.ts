@@ -39,6 +39,39 @@ const ADVISORY: Record<string, string> = {
   taxi_in: 'clear of the runway — contact Ground for taxi to parking.',
 };
 
+// Ground services (stock MSFS), for labels + spoken ramp acknowledgements.
+const GROUND_SVC_LABEL: Record<string, string> = {
+  pushback: 'Pushback', jetway: 'Jetway', fuel: 'Fuel truck', baggage: 'Baggage',
+  catering: 'Catering', power: 'Ground power', rampTruck: 'Stairs', groundCrew: 'Ground crew',
+  door: 'Main door', door2: 'Door 2', door3: 'Door 3', door4: 'Door 4',
+};
+// Map free pilot text to a ground SERVICE (only ones ATC doesn't already handle — pushback/taxi
+// stay with the ATC session so you still get the clearance). Returns null if it's not a svc request.
+function matchGroundService(text: string): string | null {
+  const t = text.toLowerCase();
+  if (/\bfuel\b|refuel|top off|gas( us)? up/.test(t)) return 'fuel';
+  if (/jet ?way|jet bridge|air ?bridge/.test(t)) return 'jetway';
+  if (/cater|catering|galley|meals? loaded/.test(t)) return 'catering';
+  if (/baggage|luggage|bags? (loaded|on)/.test(t)) return 'baggage';
+  if (/ground power|gpu\b|external power|power cart/.test(t)) return 'power';
+  if (/stairs|air ?stairs|boarding stairs/.test(t)) return 'rampTruck';
+  if (/open .*doors?|toggle .*door|main door/.test(t)) return 'door';
+  if (/ground crew|ramp crew|are you (there|connected)/.test(t)) return 'groundCrew';
+  return null;
+}
+
+const GROUND_SVC_SPOKEN: Record<string, string> = {
+  pushback: 'pushback approved, brakes released, cleared to push',
+  jetway: 'jetway operating',
+  fuel: 'fuel truck on the way',
+  baggage: 'baggage loading',
+  catering: 'catering on the way',
+  power: 'ground power connected',
+  rampTruck: 'stairs coming to the door',
+  groundCrew: 'ground crew standing by',
+  door: 'main door operating', door2: 'door two operating', door3: 'door three operating', door4: 'door four operating',
+};
+
 const here = dirname(fileURLToPath(import.meta.url));
 const WIDGET_HTML = join(here, '..', '..', '..', 'widget', 'atc-widget.html');
 const DASHBOARD_HTML = join(here, '..', '..', '..', 'widget', 'dashboard.html');
@@ -267,9 +300,20 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
 
     ws.on('close', () => clients.delete(ws));
     ws.on('message', async (raw) => {
-      let msg: { type?: string; text?: string; to?: string };
+      let msg: { type?: string; text?: string; to?: string; service?: string };
       try { msg = JSON.parse(String(raw)); } catch { return; }
       if (msg.type === 'pilot_tx' && typeof msg.text === 'string' && msg.text.trim()) {
+        // Voice/text ground-service requests (fuel/jetway/catering/etc.) go to the ramp, not ATC.
+        const svc = matchGroundService(msg.text);
+        if (svc) {
+          const ok = deps.sim ? deps.sim.groundService(svc) : false;
+          broadcast({ type: 'ground_ack', service: svc, ok });
+          send(ws, { type: 'atc_tx', from: 'Ramp', freq: null,
+            text: ok ? `${spokenFlightCallsign(deps.fp)}, ${GROUND_SVC_SPOKEN[svc] ?? 'roger'}.`
+                     : `Ground service unavailable (is MSFS in a flight?)`,
+            expecting: 'none' });
+          return;
+        }
         try {
           const reply = await deps.session.handle(msg.text.trim());
           send(ws, { type: 'atc_tx', from: reply.from, freq: reply.freqMhz, text: reply.text, expecting: reply.expecting });
@@ -297,6 +341,16 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
         } catch (e) {
           send(ws, { type: 'cpdlc_sent', to: deps.fp.origin, ok: false, error: (e as Error).message });
         }
+      } else if (msg.type === 'ground_svc' && typeof msg.service === 'string') {
+        // Trigger a stock MSFS ground service and acknowledge to all widgets (ramp/voice).
+        const svc = msg.service;
+        const ok = deps.sim ? deps.sim.groundService(svc) : false;
+        const label = GROUND_SVC_LABEL[svc] ?? svc;
+        broadcast({ type: 'ground_ack', service: svc, ok });
+        broadcast({ type: 'atc_tx', from: 'Ramp', freq: null,
+          text: ok ? `${spokenFlightCallsign(deps.fp)}, ${GROUND_SVC_SPOKEN[svc] ?? (label + ' requested')}.`
+                   : `Ground service unavailable (is MSFS in a flight?)`,
+          expecting: 'none' });
       }
     });
   });

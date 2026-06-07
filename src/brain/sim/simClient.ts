@@ -89,6 +89,29 @@ const EVT_COM1_SWAP = 71;
 // can't be imported as a value under tsx/esbuild). Use the literal: HIGHEST = 1.
 const PRIORITY_HIGHEST = 1;
 
+// Ground-service key events (sent by string name). Only stock MSFS events — nothing proprietary.
+// Unknown/unsupported names simply no-op in the sim, so this is safe across MSFS 2020/2024.
+// Each gets a unique client-event id starting at 80.
+const GROUND_EVENTS: Record<string, string> = {
+  pushback: 'TOGGLE_PUSHBACK',
+  // Doors toggle by index: TOGGLE_AIRCRAFT_EXIT selects exit 1, then KEY_SELECT_n picks exit n.
+  // The widget sends door<n> and we issue the toggle then the selector for that index.
+  door: 'TOGGLE_AIRCRAFT_EXIT',
+  jetway: 'TOGGLE_JETWAY',
+  fuel: 'REQUEST_FUEL_KEY',
+  baggage: 'REQUEST_LUGGAGE',
+  catering: 'REQUEST_CATERING',
+  power: 'REQUEST_POWER_SUPPLY',
+  rampTruck: 'TOGGLE_RAMP_TRUCK',
+  groundCrew: 'TOGGLE_AIRCRAFT_EXIT', // crew availability is door-driven in stock MSFS
+};
+// Exit selectors: KEY_SELECT_2..8 pick a specific door index before the toggle.
+const SELECT_EVENTS: Record<number, string> = {
+  2: 'KEY_SELECT_2', 3: 'KEY_SELECT_3', 4: 'KEY_SELECT_4',
+  5: 'KEY_SELECT_5', 6: 'KEY_SELECT_6', 7: 'KEY_SELECT_7', 8: 'KEY_SELECT_8',
+};
+const GROUND_EVENT_BASE_ID = 80;
+
 function withTimeout<T>(p: Promise<T>, ms: number, msg: string): Promise<T> {
   return Promise.race([
     p,
@@ -138,6 +161,7 @@ export class SimClient {
     );
     this.handle = handle;
     this.comEventsReady = false;
+    this.groundEventsReady = false;
     this.defineAirportFacility();
     this.defineParking();
     this.defineState();
@@ -154,6 +178,7 @@ export class SimClient {
     this.handle?.close();
     this.handle = null;
     this.comEventsReady = false;
+    this.groundEventsReady = false;
   }
 
   /**
@@ -186,6 +211,56 @@ export class SimClient {
       console.error(`[SimConnect] COM1 auto-tune failed: ${(e as Error).message}`);
       return false;
     }
+  }
+
+  private groundEventsReady = false;
+
+  /**
+   * Trigger a stock MSFS ground service by key (see GROUND_EVENTS). Best-effort: maps the event
+   * lazily, transmits it, and no-ops if the sim isn't connected or the event is unsupported.
+   * Returns true if the event was sent.
+   */
+  groundService(key: string): boolean {
+    const handle = this.handle;
+    if (!handle) return false;
+    try {
+      this.ensureGroundEvents(handle);
+      // Doors: "door" = exit 1 (plain toggle); "door<n>" = select index n, then toggle.
+      const doorMatch = /^door(\d+)$/.exec(key);
+      if (key === 'door' || doorMatch) {
+        const n = doorMatch ? Number(doorMatch[1]) : 1;
+        if (n >= 2 && SELECT_EVENTS[n]) this.fire(handle, this.eventId(SELECT_EVENTS[n]!));
+        this.fire(handle, this.eventId('TOGGLE_AIRCRAFT_EXIT'));
+        return true;
+      }
+      const eventName = GROUND_EVENTS[key];
+      if (!eventName) return false;
+      this.fire(handle, this.eventId(eventName));
+      return true;
+    } catch (e) {
+      console.error(`[SimConnect] ground service '${key}' failed: ${(e as Error).message}`);
+      return false;
+    }
+  }
+
+  /** Map every ground + selector event to a stable client-event id, once per connection. */
+  private ensureGroundEvents(handle: ConnectionHandle): void {
+    if (this.groundEventsReady) return;
+    let id = GROUND_EVENT_BASE_ID;
+    for (const name of this.allGroundEventNames()) handle.mapClientEventToSimEvent(id++, name);
+    this.groundEventsReady = true;
+  }
+  private allGroundEventNames(): string[] {
+    return [...new Set([...Object.values(GROUND_EVENTS), ...Object.values(SELECT_EVENTS)])];
+  }
+  private eventId(name: string): number {
+    return GROUND_EVENT_BASE_ID + this.allGroundEventNames().indexOf(name);
+  }
+  private fire(handle: ConnectionHandle, id: number): void {
+    handle.transmitClientEvent(
+      SimConnectConstants.OBJECT_ID_USER, id, 0,
+      PRIORITY_HIGHEST, EventFlag.EVENT_FLAG_GROUPID_IS_PRIORITY,
+    );
   }
 
   /** Fetch runways + frequencies for an airport from the sim's navdata. */

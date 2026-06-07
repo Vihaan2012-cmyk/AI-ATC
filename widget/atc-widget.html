@@ -105,6 +105,36 @@
   .leaflet-tooltip.wptip { background: rgba(14,22,32,.92); border: 1px solid #2a3b4d; color: #cfe0f2; box-shadow: none; }
   .planfoot { flex: 0 0 auto; padding: 8px 13px; border-top: 1px solid #182433; font-size: 11px; color: #6f8197; }
 
+  /* ---- Ground services (EFB-style ramp panel) ---- */
+  .gpanel { flex: 1; overflow-y: auto; padding: 0; background: #0a131c; }
+  .gbar { display: flex; align-items: center; justify-content: space-between; padding: 9px 14px; border-bottom: 1px solid #1a2836; background: #0c1722; }
+  .gbar-t { font: 800 11px ui-monospace, Consolas, monospace; letter-spacing: 2px; color: #cdd9e5; }
+  .gbar-s { font: 700 10px ui-monospace, Consolas, monospace; letter-spacing: 1px; color: #5f7488; padding: 2px 8px; border: 1px solid #24384a; border-radius: 4px; }
+  .gsec { border-bottom: 1px solid #15212d; padding: 10px 14px 12px; }
+  .gsec-h { font: 700 9.5px ui-monospace, Consolas, monospace; letter-spacing: 1.5px; color: #5f7488; margin-bottom: 8px; }
+  .glist { display: flex; flex-direction: column; gap: 1px; }
+  .grow2 { display: flex; align-items: center; gap: 11px; width: 100%; padding: 10px 11px; border: 0; border-left: 2px solid transparent; border-radius: 5px;
+    background: #0e1a25; color: #c3d2e0; cursor: pointer; text-align: left; transition: background .1s, border-color .1s; }
+  .grow2:hover { background: #122130; }
+  .grow2:active { background: #16283a; }
+  .grow2.on { border-left-color: #43d17a; background: #0f2018; }
+  .gico { width: 18px; height: 18px; flex: 0 0 18px; fill: none; stroke: #7d93a8; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .grow2:hover .gico { stroke: #cdd9e5; }
+  .grow2.on .gico { stroke: #43d17a; }
+  .gtx { flex: 1; font-size: 13px; font-weight: 600; }
+  .gst { font: 700 9.5px ui-monospace, Consolas, monospace; letter-spacing: .5px; color: #43d17a; min-width: 56px; text-align: right; }
+  .gdoors { display: grid; grid-template-columns: repeat(auto-fit, minmax(54px, 1fr)); gap: 6px; }
+  .gdoor { padding: 12px 0; border: 1px solid #24384a; border-radius: 5px; background: #0e1a25; color: #c3d2e0;
+    font: 700 13px ui-monospace, Consolas, monospace; letter-spacing: 1px; cursor: pointer; transition: all .1s; }
+  .gdoor:hover { border-color: var(--accent); color: #fff; }
+  .gdoor.on { border-color: #43d17a; color: #43d17a; background: #0f2018; }
+  .gmacros { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .gmacro { display: flex; flex-direction: column; gap: 3px; padding: 11px 12px; border: 1px solid #24384a; border-radius: 6px;
+    background: #0e1a25; color: #dbe6f1; font-weight: 700; font-size: 13px; cursor: pointer; text-align: left; transition: all .1s; }
+  .gmacro:hover { border-color: var(--accent); }
+  .gmacro small { font: 500 9.5px ui-monospace, Consolas, monospace; color: #5f7488; letter-spacing: .3px; }
+  .gfoot { padding: 11px 14px; font-size: 10.5px; color: #56697d; }
+
   /* info button + flyout drawer */
   .iconbtn { -webkit-app-region: no-drag; width: 24px; height: 24px; border: 0; border-radius: 6px; background: #18222e; color: #b7c6d6; font-size: 14px; cursor: pointer; }
   .iconbtn:hover { background: #21303f; }
@@ -172,6 +202,7 @@
     <div class="tabs">
       <button class="tab active" data-v="comms">COMMS</button>
       <button class="tab" data-v="plan">PLAN</button>
+      <button class="tab" data-v="ground">GROUND</button>
       <button class="tab" data-v="setup">SETUP</button>
     </div>
 
@@ -202,6 +233,48 @@
         <div class="planhead"><span id="planRoute">No flight plan</span></div>
         <div id="planwrap"><div id="map"></div></div>
         <div class="planfoot mono" id="planFoot"></div>
+      </div>
+
+      <!-- GROUND SERVICES -->
+      <div class="view" id="v-ground">
+        <div class="gpanel">
+          <div class="gbar"><span class="gbar-t">GROUND OPS</span><span class="gbar-s" id="gAircraft">—</span></div>
+
+          <div class="gsec">
+            <div class="gsec-h">Servicing</div>
+            <div class="glist">
+              <button class="grow2" data-svc="fuel"><svg viewBox="0 0 24 24" class="gico"><path d="M3 21V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v16M3 21h13M7 7h5M16 8l3 3v7a2 2 0 0 0 2 0v-7l-3-4"/></svg><span class="gtx">Fuel</span><span class="gst" data-st></span></button>
+              <button class="grow2" data-svc="baggage"><svg viewBox="0 0 24 24" class="gico"><rect x="5" y="8" width="14" height="12" rx="2"/><path d="M9 8V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v3"/></svg><span class="gtx">Baggage</span><span class="gst" data-st></span></button>
+              <button class="grow2" data-svc="catering"><svg viewBox="0 0 24 24" class="gico"><path d="M4 20h16M6 20v-6a6 6 0 0 1 12 0v6M12 8V4"/></svg><span class="gtx">Catering</span><span class="gst" data-st></span></button>
+              <button class="grow2" data-svc="power"><svg viewBox="0 0 24 24" class="gico"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/></svg><span class="gtx">Ground power</span><span class="gst" data-st></span></button>
+            </div>
+          </div>
+
+          <div class="gsec">
+            <div class="gsec-h">Access</div>
+            <div class="glist">
+              <button class="grow2" data-svc="jetway"><svg viewBox="0 0 24 24" class="gico"><path d="M3 10h10l4 4h4M3 14h10M13 6v12"/></svg><span class="gtx">Jetway</span><span class="gst" data-st></span></button>
+              <button class="grow2" data-svc="rampTruck"><svg viewBox="0 0 24 24" class="gico"><path d="M5 20h6l8-8M5 20v-3h3v-3h3v-3h3"/></svg><span class="gtx">Stairs</span><span class="gst" data-st></span></button>
+              <button class="grow2" data-svc="groundCrew"><svg viewBox="0 0 24 24" class="gico"><circle cx="12" cy="7" r="3"/><path d="M5 21v-2a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v2"/></svg><span class="gtx">Ground crew</span><span class="gst" data-st></span></button>
+              <button class="grow2" data-svc="pushback"><svg viewBox="0 0 24 24" class="gico"><path d="M21 12H7M11 8l-4 4 4 4M3 6v12"/></svg><span class="gtx">Pushback</span><span class="gst" data-st></span></button>
+            </div>
+          </div>
+
+          <div class="gsec">
+            <div class="gsec-h">Doors <span id="gDoorHint" style="color:#56697d;font-weight:500;letter-spacing:.3px;"></span></div>
+            <div class="gdoors" id="gDoors"></div>
+          </div>
+
+          <div class="gsec">
+            <div class="gsec-h">Turnaround</div>
+            <div class="gmacros">
+              <button class="gmacro" id="g-arrival">Arrival<small>power · stairs · L1 · baggage</small></button>
+              <button class="gmacro" id="g-departure">Departure<small>fuel · catering · baggage · close</small></button>
+            </div>
+          </div>
+
+          <div class="gfoot">Stock MSFS services via SimConnect. Voice works too — "request fuel", "open L1".</div>
+        </div>
       </div>
 
       <!-- SETUP -->
@@ -494,6 +567,52 @@ $('send').addEventListener('click',function(){ sendText(); });
 $('input').addEventListener('keydown',function(e){ if(e.key==='Enter'||e.keyCode===13) sendText(); });
 if($('cpdlcPdc')) $('cpdlcPdc').addEventListener('click',function(){ if(ws&&ws.readyState===1){ ws.send(JSON.stringify({type:'cpdlc_pdc'})); entry('sys','','','Requesting PDC over datalink…'); } });
 
+/* ---- ground services ---- */
+function sendGround(svc){ if(ws&&ws.readyState===1) ws.send(JSON.stringify({type:'ground_svc', service:svc})); }
+function flashGround(svc, ok){
+  var b=document.querySelector('[data-svc="'+svc+'"]'); if(!b) return;
+  var s=b.querySelector('[data-st]');
+  if(ok){ b.classList.add('on'); if(s) s.textContent='REQ'; setTimeout(function(){ b.classList.remove('on'); if(s) s.textContent=''; }, 4000); }
+  else { if(s){ s.textContent='N/A'; s.style.color='#e0a14a'; setTimeout(function(){ s.textContent=''; s.style.color=''; }, 4000); } }
+}
+Array.prototype.forEach.call(document.querySelectorAll('[data-svc]'), function(b){
+  b.addEventListener('click', function(){ sendGround(b.dataset.svc); });
+});
+// Quick-turnaround macros: fire a sequence of services with small gaps so the sim queues them.
+function runMacro(list){ list.forEach(function(svc,i){ setTimeout(function(){ sendGround(svc); }, i*350); }); }
+if($('g-arrival')) $('g-arrival').addEventListener('click', function(){ runMacro(['power','rampTruck','door','baggage']); entry('sys','','','Arrival services requested.'); });
+if($('g-departure')) $('g-departure').addEventListener('click', function(){ runMacro(['fuel','catering','baggage','door']); entry('sys','','','Departure services requested.'); });
+
+// Auto-detect aircraft from the flight plan and render a sensible number of exits.
+// (SimConnect can't report door count, so we estimate from the ICAO type — toggling a
+// non-existent exit simply no-ops, so over-estimating is harmless.)
+function exitCountFor(icao){
+  var t=(icao||'').toUpperCase();
+  if(/^A38|^B74|^A35K|^B77W|^B779/.test(t)) return 8;       // very large widebody
+  if(/^B77|^A33|^A34|^B78|^B76|^A35|^MD11|^B74/.test(t)) return 6; // widebody
+  if(/^A32|^A31|^B73|^B71|^E19|^E29|^A22|^BCS|^MD8|^MD9|^B75/.test(t)) return 4; // narrowbody
+  if(/^E1|^E7|^CRJ|^DH8|^AT[47]|^SF3|^B19|^B36|^SW4/.test(t)) return 3; // regional/turboprop
+  if(/^C172|^C152|^C82|^DA|^SR2|^PA|^BE|^TBM|^P28/.test(t)) return 1;  // GA
+  return 4; // sensible default
+}
+function renderGroundAircraft(){
+  var ac = fpinfo && (fpinfo.aircraftName || fpinfo.aircraft);
+  var icao = fpinfo && fpinfo.aircraft;
+  if($('gAircraft')) $('gAircraft').textContent = ac ? String(ac).toUpperCase() : '—';
+  var n = exitCountFor(icao);
+  var wrap=$('gDoors'); if(!wrap) return;
+  wrap.innerHTML='';
+  for(var i=1;i<=n;i++){
+    var b=document.createElement('button'); b.className='gdoor';
+    b.dataset.svc = i===1 ? 'door' : ('door'+i);
+    b.textContent = i;
+    b.addEventListener('click', (function(s){ return function(){ sendGround(s); }; })(b.dataset.svc));
+    wrap.appendChild(b);
+  }
+  if($('gDoorHint')) $('gDoorHint').textContent = '· '+n+' exits (est. from '+(icao||'type')+')';
+}
+renderGroundAircraft();
+
 /* ---- speech-to-text (push-to-talk) ---- */
 var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 var rec=null, listening=false, heard='';
@@ -536,7 +655,7 @@ function connect(){
     var m; try{ m=JSON.parse(ev.data); }catch(e){ return; }
     if(m.type==='hello'){ flight=m; $('cs').textContent=m.callsign; $('rt').textContent=m.origin+' ▸ '+m.destination; defaultQuick(); }
     else if(m.type==='flightplan'){ plan=m; $('planRoute').innerHTML='<b>'+esc(m.origin)+'</b> &#9656; <b>'+esc(m.destination)+'</b>  &middot; '+(m.aircraft||'')+'  &middot; cruise '+(m.cruise||'?')+' ft'; drawRoute(); }
-    else if(m.type==='fpinfo'){ fpinfo=m; if($('drawer').classList.contains('open')) renderDrawer(); }
+    else if(m.type==='fpinfo'){ fpinfo=m; if($('drawer').classList.contains('open')) renderDrawer(); renderGroundAircraft(); }
     else if(m.type==='atc_tx'){ var f=m.freq?Number(m.freq).toFixed(3):''; typeEntry(m.from,f,m.text); speak(m.text, curKind); if(m.freq) $('freq').textContent=Number(m.freq).toFixed(3); }
     else if(m.type==='state'){ $('stn').textContent=STATION[m.activeController]||''; curKind=m.activeController||curKind; }
     else if(m.type==='radio'){ var rf=Number(m.com1).toFixed(3); $('freq').textContent=rf; entry('sys','','', (m.active?'COM1 tuned to ':'COM1 standby set to ')+rf); }
@@ -546,6 +665,7 @@ function connect(){
     else if(m.type==='cpdlc_status'){ cpdlcOn=!!m.enabled; if($('cpdlcRow')) $('cpdlcRow').style.display = cpdlcOn?'block':'none'; }
     else if(m.type==='cpdlc_in'){ entry('cpdlc', 'CPDLC ◂ '+m.from, '', m.text); }
     else if(m.type==='cpdlc_sent'){ entry('sys','','', m.ok? ('CPDLC sent to '+m.to) : ('CPDLC failed: '+(m.error||m.to))); }
+    else if(m.type==='ground_ack'){ flashGround(m.service, m.ok); }
     else if(m.type==='error'){ entry('sys','','', 'error: '+m.error); }
   };
 }
