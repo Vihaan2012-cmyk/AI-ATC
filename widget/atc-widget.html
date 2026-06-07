@@ -411,11 +411,8 @@ function hashStr(s){ var h=0,i; for(i=0;i<(s||'').length;i++){ h=(h*31+s.charCod
 function voiceFor(kind){ if(!sysVoices.length) return null; var en=sysVoices.filter(function(v){return /^en/i.test(v.lang);}); var pool=en.length?en:sysVoices; return pool[hashStr(kind)%pool.length]; }
 var actx=null;
 function ensureCtx(){ var AC=window.AudioContext||window.webkitAudioContext; if(!AC) return null; if(!actx) actx=new AC(); if(actx.state==='suspended') actx.resume(); return actx; }
-function squelch(){ try{ var c=ensureCtx(); if(!c) return;
-  var t=c.currentTime, o=c.createOscillator(), g=c.createGain(); o.type='square'; o.frequency.value=1100;
-  g.gain.setValueAtTime(0.0008,t); g.gain.exponentialRampToValueAtTime(0.05,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+0.09);
-  o.connect(g); g.connect(c.destination); o.start(t); o.stop(t+0.1);
-}catch(e){} }
+// Squelch tone removed — it sounded harsh ("microwave beep"). No-op kept so callers don't break.
+function squelch(){}
 
 /* ---- Piper HD voices (Electron only) ---- */
 var PIPER = (typeof window!=='undefined' && window.atcVoice) ? window.atcVoice : null;
@@ -444,15 +441,13 @@ function refreshPiper(){
   });
 }
 
-// Radio-band filter + squelch tail so Piper output sounds like a real transmission.
+// Play Piper output clean (no radio-band filtering / squelch — it sounded harsh).
 function playWav(arrbuf){
   var c=ensureCtx(); if(!c) return false;
   return c.decodeAudioData(arrbuf.slice(0)).then(function(buf){
     var src=c.createBufferSource(); src.buffer=buf;
-    var hp=c.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=300;
-    var lp=c.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=3200;
     var g=c.createGain(); g.gain.value=(voiceCfg.vol!=null?voiceCfg.vol:1);
-    src.connect(hp); hp.connect(lp); lp.connect(g); g.connect(c.destination);
+    src.connect(g); g.connect(c.destination);
     src.start();
   }).catch(function(){ return false; });
 }
