@@ -183,6 +183,26 @@
 
     <div class="side right">
       <div class="sect">
+        <h2>Replay</h2>
+        <div style="padding:12px 15px; display:flex; flex-direction:column; gap:10px;">
+          <select id="replayFlightSelect" style="padding:6px 8px; background:var(--panel2); border:1px solid var(--line); border-radius:7px; color:var(--ink); font-size:12px; cursor:pointer;">
+            <option value="">— Select a flight —</option>
+          </select>
+          <div style="display:flex; gap:6px;">
+            <button id="replayPlayBtn" style="flex:1; padding:6px 10px; background:rgba(47,182,255,.18); border:1px solid var(--accent); border-radius:7px; color:#bfe0ff; font-weight:600; font-size:11px; cursor:pointer; transition:background .12s;" onmouseover="this.style.background='rgba(47,182,255,.30)'" onmouseout="this.style.background='rgba(47,182,255,.18)'">Play</button>
+            <button id="replayPauseBtn" style="flex:1; padding:6px 10px; background:rgba(155,92,255,.18); border:1px solid var(--line); border-radius:7px; color:#bfe0ff; font-weight:600; font-size:11px; cursor:pointer; transition:background .12s;" onmouseover="this.style.background='rgba(155,92,255,.30)'" onmouseout="this.style.background='rgba(155,92,255,.18)'">Pause</button>
+            <button id="replayStepBtn" style="flex:1; padding:6px 10px; background:rgba(155,92,255,.18); border:1px solid var(--line); border-radius:7px; color:#bfe0ff; font-weight:600; font-size:11px; cursor:pointer; transition:background .12s;" onmouseover="this.style.background='rgba(155,92,255,.30)'" onmouseout="this.style.background='rgba(155,92,255,.18)'">Step</button>
+          </div>
+          <div style="display:flex; gap:6px; align-items:center;">
+            <input id="replayScrubber" type="range" min="0" max="100" value="0" style="flex:1; cursor:pointer; height:4px;" />
+            <span id="replayPosition" style="font-size:11px; color:var(--dim); min-width:35px; text-align:right;">0/0</span>
+          </div>
+          <div id="replayPanel" style="background:#0b1420; border:1px solid var(--line); border-radius:9px; padding:10px 12px; height:220px; overflow-y:auto; font-family:ui-monospace,Consolas,monospace; font-size:11px; color:#bcd4ec; line-height:1.6; white-space:pre-wrap; word-break:break-word;">
+            <div style="color:var(--dim);">Select a flight to view transcript replay.</div>
+          </div>
+        </div>
+      </div>
+      <div class="sect">
         <h2>Flight log</h2>
         <ul class="flist" id="recent"><li class="empty">No flights logged yet.</li></ul>
       </div>
@@ -203,6 +223,114 @@ var $ = function(id){ return document.getElementById(id); };
 function dbg(msg){ var el=$('dbg'); if(el) el.textContent=msg; }
 var APT = { KSEA:[47.449,-122.309], KPDX:[45.589,-122.597], KLAX:[33.942,-118.408], KSLE:[44.909,-123.003] };
 var globe, flights = [], selectedRoute = null, coordMap = {};
+
+// Replay state
+var replayState = {
+  currentFlightId: null, currentFlightData: null, transcriptLines: [], lineIndex: 0,
+  isPlaying: false, playSpeed: 1000, playTimer: null
+};
+
+function parseTranscript(text) {
+  if (!text) return [];
+  return text.split(/\n+/).map(function(line) { return line.trim(); }).filter(function(line) { return line.length > 0; });
+}
+
+function updateReplayDisplay() {
+  var panel = $('replayPanel'), pos = $('replayPosition'), scrub = $('replayScrubber');
+  var lines = replayState.transcriptLines;
+  var idx = replayState.lineIndex;
+  var displayed = lines.slice(0, idx + 1).join('\n');
+  panel.textContent = displayed;
+  panel.scrollTop = panel.scrollHeight;
+  pos.textContent = (idx + 1) + '/' + lines.length;
+  scrub.max = Math.max(1, lines.length - 1);
+  scrub.value = idx;
+}
+
+function stopReplay() {
+  replayState.isPlaying = false;
+  if (replayState.playTimer) { clearTimeout(replayState.playTimer); replayState.playTimer = null; }
+  $('replayPlayBtn').textContent = 'Play';
+}
+
+function playNextLine() {
+  if (replayState.lineIndex < replayState.transcriptLines.length - 1) {
+    replayState.lineIndex++;
+    updateReplayDisplay();
+    if (replayState.isPlaying) {
+      replayState.playTimer = setTimeout(playNextLine, replayState.playSpeed);
+    }
+  } else {
+    stopReplay();
+  }
+}
+
+function startReplay() {
+  replayState.isPlaying = true;
+  $('replayPlayBtn').textContent = 'Playing...';
+  playNextLine();
+}
+
+function loadReplayFlight(flightId) {
+  if (!flightId || !flights.length) { return; }
+  var f = null;
+  for (var i = 0; i < flights.length; i++) {
+    var fk = flights[i].callsign + '|' + flights[i].origin + '|' + flights[i].destination + '|' + i;
+    if (fk === flightId) { f = flights[i]; break; }
+  }
+  if (!f) { return; }
+  replayState.currentFlightId = flightId;
+  replayState.currentFlightData = f;
+  replayState.transcriptLines = parseTranscript(f.transcript || '');
+  replayState.lineIndex = 0;
+  stopReplay();
+  if (replayState.transcriptLines.length === 0) {
+    $('replayPanel').textContent = 'No transcript for this flight.';
+    $('replayPosition').textContent = '0/0';
+  } else {
+    updateReplayDisplay();
+  }
+}
+
+function initReplayControls() {
+  var sel = $('replayFlightSelect');
+  $('replayPlayBtn').addEventListener('click', function() {
+    if (!replayState.isPlaying) { startReplay(); }
+  });
+  $('replayPauseBtn').addEventListener('click', function() { stopReplay(); });
+  $('replayStepBtn').addEventListener('click', function() {
+    stopReplay();
+    if (replayState.lineIndex < replayState.transcriptLines.length - 1) {
+      replayState.lineIndex++;
+      updateReplayDisplay();
+    }
+  });
+  $('replayScrubber').addEventListener('input', function(e) {
+    stopReplay();
+    var newIdx = parseInt(e.target.value, 10);
+    if (!isNaN(newIdx) && newIdx >= 0 && newIdx < replayState.transcriptLines.length) {
+      replayState.lineIndex = newIdx;
+      updateReplayDisplay();
+    }
+  });
+  sel.addEventListener('change', function(e) {
+    if (e.target.value) { loadReplayFlight(e.target.value); }
+  });
+}
+
+function updateReplayFlightList() {
+  var sel = $('replayFlightSelect');
+  sel.innerHTML = '<option value="">— Select a flight —</option>';
+  for (var i = 0; i < flights.length; i++) {
+    var f = flights[i];
+    var fk = (f.callsign || '') + '|' + (f.origin || '') + '|' + (f.destination || '') + '|' + i;
+    var label = esc((f.callsign || 'Flight') + ' · ' + (f.origin || '?') + '→' + (f.destination || '?') + ' (' + (f.readbackAccuracy != null ? f.readbackAccuracy + '%' : 'n/a') + ')');
+    var opt = document.createElement('option');
+    opt.value = fk;
+    opt.textContent = label;
+    sel.appendChild(opt);
+  }
+}
 
 function aptLL(icao){ if(!icao) return null; var k=String(icao).toUpperCase(); return coordMap[k] || APT[k] || null; }
 
@@ -498,7 +626,7 @@ function refresh(){
   var base = (location.protocol==='http:'||location.protocol==='https:') ? '' : 'http://localhost:8742';
   fetch(base + '/api/dashboard')
     .then(function(r){ if(!r.ok) throw new Error('API HTTP '+r.status); return r.json(); })
-    .then(function(d){ try{ render(d); }catch(e){ showErr('render error: '+e.message); console.error(e); } })
+    .then(function(d){ try{ render(d); updateReplayFlightList(); }catch(e){ showErr('render error: '+e.message); console.error(e); } })
     .catch(function(e){ showErr('Cannot reach the brain on :8742 — is it running? ('+e.message+')'); });
   // Fetch and render achievements
   fetch(base + '/api/achievements')
@@ -538,6 +666,7 @@ window.addEventListener('load', function(){
   dbg('THREE='+(typeof THREE)+'  Globe='+(typeof Globe));
   if(typeof Globe==='undefined'){ dbg('ERROR: globe.gl library did NOT load (check /lib).'); }
   else { try { initGlobe(); dbg('globe initialized, waiting for data…'); } catch(e){ dbg('initGlobe ERROR: '+e.message); } }
+  try { initReplayControls(); } catch(e){ console.error('[replay init]', e); }
   refresh(); setInterval(refresh, 5000);
 });
 </script>
