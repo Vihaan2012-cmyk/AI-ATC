@@ -15,7 +15,7 @@ import { spokenFlightCallsign } from '../util/aircraft.js';
 import { shortenAirportName, spokenRunway, parseSpokenAltitudeFt } from '../util/phraseology.js';
 import { buildHold } from './holds.js';
 import { parseEnrouteRequests } from '../llm/freeflow.js';
-import { composeEnrouteReply, assignedAltitude, composeUnableReply } from './enroute.js';
+import { composeEnrouteReply, assignedAltitude, composeUnableReply, isRerouteRequest, composeReroute, composePopupIfr } from './enroute.js';
 import { trafficAdvisory, type TrafficPicture } from './liveTraffic.js';
 import { isExplainRequest, explainInstruction, type LastInstruction } from './explain.js';
 import { ConversationMemory } from '../llm/memory.js';
@@ -153,6 +153,28 @@ export class ControllerSession {
         from: STATION_LABELS[this.kind] ?? 'ATC', freqMhz: this.activeFreqMhz,
         text: `${this.spokenCs}, ${composeUnableReply(this.lastAssignedAltFt)}.`,
         expecting: 'none',
+      };
+    }
+    // Pop-up VFR-to-IFR: a VFR flight airborne requesting IFR to its destination.
+    if (this.fp.flightRules === 'VFR' && /request (ifr|i-f-r)( clearance)?/i.test(pilotText)
+        && (this.kind === 'center' || this.kind === 'approach' || this.kind === 'departure')) {
+      const squawk = String(4000 + ((this.com1Mhz * 1000) % 3000)).padStart(4, '0').slice(0, 4);
+      const climbTo = Math.max(this.fp.cruiseAltitudeFt, (this.lastAssignedAltFt ?? 6000) + 2000);
+      this.lastAssignedAltFt = climbTo;
+      return {
+        from: STATION_LABELS[this.kind] ?? 'ATC', freqMhz: this.activeFreqMhz,
+        text: `${this.spokenCs}, ${composePopupIfr(this.fp.destination, squawk, climbTo)}.`,
+        expecting: 'readback', assigned: { squawk, altitudeFt: climbTo },
+      };
+    }
+    // Enroute reroute request (center).
+    if (isRerouteRequest(pilotText) && (this.kind === 'center' || this.kind === 'departure')) {
+      const viaFix = pilotText.match(/\bvia ([A-Za-z]{2,5})\b/i)?.[1]?.toUpperCase()
+        ?? pilotText.match(/\bdirect ([A-Za-z]{2,5})\b/i)?.[1]?.toUpperCase();
+      return {
+        from: STATION_LABELS[this.kind] ?? 'ATC', freqMhz: this.activeFreqMhz,
+        text: `${this.spokenCs}, ${composeReroute(viaFix, this.fp.destination)}.`,
+        expecting: 'readback',
       };
     }
     // Free-flow enroute requests (deviate/direct/climb/descend/speed) — handled when airborne and

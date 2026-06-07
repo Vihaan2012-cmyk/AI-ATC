@@ -88,6 +88,28 @@ export function composeUnableReply(lastAssignedAltFt: number | null): string {
   return 'roger, maintain present altitude, advise when able';
 }
 
+/** Did the pilot ask for a reroute / amended routing? */
+export function isRerouteRequest(text: string): boolean {
+  return /\brequest reroute\b|\bamended route\b|\brequest .* routing\b|\bcan we get .* direct\b/i.test(text);
+}
+
+/**
+ * Compose an enroute reroute. If a fix is given, route via it then as filed; otherwise offer the
+ * rest of the route unchanged. Deterministic.
+ */
+export function composeReroute(viaFix: string | undefined, destination: string): string {
+  if (viaFix) return `cleared to ${destination} via ${viaFix}, then as filed, rest of route unchanged`;
+  return `standby for amended routing; expect cleared as filed, rest of route unchanged`;
+}
+
+/**
+ * Compose an airborne pop-up IFR clearance (VFR pilot requesting IFR while flying). Deterministic.
+ */
+export function composePopupIfr(destination: string, squawk: string, climbToFt: number): string {
+  return `cleared to ${destination} as filed, climb and maintain ${spokenAltitude(climbToFt)}, `
+    + `squawk ${squawk.split('').join(' ')}, advise heading and altitude`;
+}
+
 /** Items the pilot must read back, derived from the honored requests (for compliance). */
 export function enrouteReadback(reqs: EnrouteRequest[]): { altitudeFt?: number; headingDeg?: number; speedKt?: number } {
   const out: { altitudeFt?: number; headingDeg?: number; speedKt?: number } = {};
