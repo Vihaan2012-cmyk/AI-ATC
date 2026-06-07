@@ -44,8 +44,16 @@ export class ReactiveMonitor {
   private altBusts = 0;
   /** True while currently busted, so we count each excursion once (not every sample). */
   private busted = false;
+  /** Conformance: samples checked vs. samples within tolerance of the assigned altitude. */
+  private confSamples = 0;
+  private confInTol = 0;
 
   constructor(private fp: FlightPlan) {}
+
+  /** Altitude conformance as a percentage (100 = always within tolerance). Null until sampled. */
+  conformance(): number | null {
+    return this.confSamples > 0 ? Math.round((this.confInTol / this.confSamples) * 100) : null;
+  }
 
   /** Distance to destination in nm from a live sample, if the dest position is known. */
   destDistance(s: FlightContext): number | null {
@@ -77,6 +85,11 @@ export class ReactiveMonitor {
     if (ctx.assignedAltitudeFt != null) {
       const diff = s.altitudeFt - ctx.assignedAltitudeFt;
       const isBust = Math.abs(diff) > ALT_BUST_FT && Math.abs(s.verticalSpeedFpm) < 500;
+      // Conformance sampling: only count level-ish samples (not mid-climb/descent toward a new alt).
+      if (Math.abs(s.verticalSpeedFpm) < 500) {
+        this.confSamples += 1;
+        if (Math.abs(diff) <= ALT_BUST_FT) this.confInTol += 1;
+      }
       if (isBust) {
         const dir = diff > 0 ? 'above' : 'below';
         // Count each excursion once (transition into busted state) for deviation escalation.

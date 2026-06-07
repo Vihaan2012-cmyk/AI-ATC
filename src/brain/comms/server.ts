@@ -220,10 +220,12 @@ function dashboardData(deps: CommsDeps, lastPos: { lat: number; lon: number; hdg
 }
 
 // A clean, shareable flight report card for the CURRENT flight, from the live scorecard + plan.
-function reportCard(deps: CommsDeps) {
+function reportCard(deps: CommsDeps, conformance: number | null) {
   const sc = deps.session.scorecard;
-  const grade = sc.readbackAccuracy >= 95 ? 'A' : sc.readbackAccuracy >= 85 ? 'B'
-    : sc.readbackAccuracy >= 70 ? 'C' : sc.readbackAccuracy >= 50 ? 'D' : 'F';
+  // Combine readback accuracy with altitude conformance (when available) for the grade.
+  const composite = conformance != null ? Math.round((sc.readbackAccuracy + conformance) / 2) : sc.readbackAccuracy;
+  const grade = composite >= 95 ? 'A' : composite >= 85 ? 'B'
+    : composite >= 70 ? 'C' : composite >= 50 ? 'D' : 'F';
   return {
     callsign: deps.fp.callsign,
     aircraft: deps.fp.aircraftIcao,
@@ -231,11 +233,12 @@ function reportCard(deps: CommsDeps) {
     rules: deps.fp.flightRules,
     cruiseFt: deps.fp.cruiseAltitudeFt,
     readbacks: { correct: sc.readbacksCorrect, expected: sc.readbacksExpected, accuracy: sc.readbackAccuracy },
+    altitudeConformance: conformance,
     grade,
     declaredEmergency: sc.declaredEmergency,
     scenario: sc.scenario,
     summary: `${deps.fp.callsign} (${deps.fp.aircraftIcao}) ${deps.fp.origin}→${deps.fp.destination}: `
-      + `readback ${sc.readbackAccuracy}% (${sc.readbacksCorrect}/${sc.readbacksExpected}), grade ${grade}`
+      + `readback ${sc.readbackAccuracy}%${conformance != null ? `, conformance ${conformance}%` : ''}, grade ${grade}`
       + (sc.declaredEmergency ? `, declared ${sc.scenario ?? 'emergency'}` : ''),
   };
 }
@@ -245,6 +248,7 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
   let lastPos: { lat: number; lon: number; hdg: number; altFt: number; gsKt: number; onGround: boolean } | null = null;
   let lastPilotTxAt = Date.now(); // for proactive "say intentions" prompts
   let pilotTxCount = 0;           // for deterministic frequency-congestion ("stand by")
+  let lastConformance: number | null = null; // altitude conformance %, from the monitor
 
   // Resume a flight across an app/brain restart: restore the session if the saved state is the
   // same flight (matched on callsign + route inside restore()).
@@ -309,7 +313,7 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
     if (req.method === 'GET' && path === '/api/report') {
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store',
         'access-control-allow-origin': '*' });
-      res.end(JSON.stringify(reportCard(deps)));
+      res.end(JSON.stringify(reportCard(deps, lastConformance)));
       return;
     }
     res.writeHead(404);
@@ -519,6 +523,7 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
         if (adv) {
           broadcast({ type: 'atc_tx', from: STATION_LABEL[deps.session.activeKind] ?? 'ATC', freq: deps.session.activeFreqMhz, text: `${cs}, ${adv.text}`, expecting: 'none' });
         }
+        lastConformance = monitor.conformance();
       });
     } catch { /* sim not available */ }
     };
