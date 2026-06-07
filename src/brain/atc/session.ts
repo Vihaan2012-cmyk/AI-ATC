@@ -18,6 +18,7 @@ import { parseEnrouteRequests } from '../llm/freeflow.js';
 import { composeEnrouteReply, assignedAltitude, composeUnableReply, isRerouteRequest, composeReroute, composePopupIfr } from './enroute.js';
 import { trafficAdvisory, type TrafficPicture } from './liveTraffic.js';
 import { pickActiveRunway } from './separation.js';
+import { generateNotam, openRunways } from './notam.js';
 import { isExplainRequest, explainInstruction, type LastInstruction } from './explain.js';
 import { ConversationMemory } from '../llm/memory.js';
 import { parseMetarDetail, type MetarInfo } from '../sim/weather.js';
@@ -420,7 +421,14 @@ export class ControllerSession {
     const name = shortenAirportName(this.nav.getAirport(icao)?.name, icao);
     const det = parseMetarDetail(this.weather[icao]?.raw);
     const letter = this.atisLetter();
-    const rwy = this.pickActiveRunway(icao, det.windDir) ?? this.fp.departureRunway ?? null;
+    const now = new Date();
+    const dayKey = now.toISOString().slice(0, 10);
+    const utcHour = now.getUTCHours();
+    // NOTAM (deterministic, occasional) — may close a runway; filter it out of the active picks.
+    const allRwys = this.nav.getRunways(icao);
+    const notam = generateNotam(icao, allRwys, dayKey);
+    const usable = openRunways(allRwys, notam);
+    const rwy = pickActiveRunway(usable, det.windDir) ?? this.fp.departureRunway ?? null;
     const atisFreq = this.nav.getFrequencies(icao).find((f) => f.type.toUpperCase() === 'ATIS')?.mhz ?? null;
     const parts = [`${name} information ${letter}.`];
     if (det.wind) parts.push(cap(det.wind) + '.');
@@ -429,6 +437,9 @@ export class ControllerSession {
     if (det.temp) parts.push(cap(det.temp) + '.');
     if (det.alt) parts.push(`Altimeter ${det.alt}.`);
     if (rwy) parts.push(`Landing and departing runway ${spokenRunway(rwy)}.`);
+    if (notam) parts.push(`Notice to air missions: ${notam.text}.`);
+    // Time-of-day flavor: night ops note (roughly 0400-1100Z = local night across US).
+    if (utcHour >= 4 && utcHour < 11) parts.push('Night operations in effect; reduced services.');
     parts.push(`Advise on initial contact you have information ${letter}.`);
     return { from: `${name} ATIS`, freqMhz: atisFreq, text: parts.join(' '), expecting: 'none' };
   }
