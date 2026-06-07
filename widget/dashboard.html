@@ -145,6 +145,24 @@
         </div>
       </div>
       <div class="sect">
+        <h2>Airport diagram</h2>
+        <div id="airportdiagram" style="padding:12px 15px; display:flex; justify-content:center; align-items:center; min-height:180px;">
+          <svg id="diagram-svg" viewBox="0 0 240 180" style="width:100%; max-width:240px; height:auto; stroke:var(--line); fill:none; stroke-width:1.5;">
+            <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="var(--dim)" /></marker></defs>
+            <rect x="10" y="10" width="220" height="160" fill="rgba(15,26,38,.5)" stroke="var(--line)"/>
+            <text id="apt-label" x="120" y="30" text-anchor="middle" font-size="14" font-weight="700" fill="var(--ink)" font-family="ui-monospace">—</text>
+            <line id="rwy1-x1" x1="50" y1="60" x2="50" y2="130" stroke="var(--line)" stroke-width="2"/>
+            <line id="rwy1-x2" x1="45" y1="60" x2="55" y2="60" stroke="var(--line)" stroke-width="1.5"/>
+            <line id="rwy1-x3" x1="45" y1="130" x2="55" y2="130" stroke="var(--line)" stroke-width="1.5"/>
+            <text id="rwy1-label" x="50" y="150" text-anchor="middle" font-size="11" fill="var(--dim)" font-family="ui-monospace">RWY01</text>
+            <line id="rwy2-x1" x1="130" y1="50" x2="190" y2="110" stroke="var(--line)" stroke-width="2"/>
+            <line id="rwy2-x2" x1="126" y1="54" x2="134" y2="46" stroke="var(--line)" stroke-width="1.5"/>
+            <line id="rwy2-x3" x1="186" y1="106" x2="194" y2="114" stroke="var(--line)" stroke-width="1.5"/>
+            <text id="rwy2-label" x="165" y="140" text-anchor="middle" font-size="11" fill="var(--dim)" font-family="ui-monospace">RWY19</text>
+          </svg>
+        </div>
+      </div>
+      <div class="sect">
         <h2>Frequencies</h2>
         <div id="freqcard" style="padding:12px 15px; display:flex; flex-direction:column; gap:6px;">
           <div style="font-size:12px; color:var(--dim);">No active field.</div>
@@ -489,6 +507,32 @@ function refresh(){
     .catch(function(e){ console.error('[achievements fetch]', e); });
   // Frequency reference card
   try { renderFreqCard(); } catch(e){ console.error('[freqcard]', e); }
+  // Airport diagram
+  try { renderAirportDiagram(); } catch(e){ console.error('[airportdiagram]', e); }
+}
+function renderAirportDiagram(){
+  var container=$('airportdiagram'); if(!container) return;
+  var base=(location.protocol==='http:'||location.protocol==='https:')?'':'http://localhost:8742';
+  fetch(base+'/api/dashboard',{cache:'no-store'}).then(function(r){return r.json();}).then(function(d){
+    if(!d||!d.live||(!d.live.origin&&!d.live.destination)){
+      $('diagram-svg').style.display='none';
+      return;
+    }
+    $('diagram-svg').style.display='block';
+    var icao=(d.live.origin||d.live.destination||'').toUpperCase();
+    $('apt-label').textContent=icao||'—';
+    if(!icao){
+      $('diagram-svg').style.display='none';
+      return;
+    }
+    var rwyIdent=icao.charCodeAt(icao.length-1);
+    var isDestLanding=d.live.destination===icao;
+    var rwyBase=isDestLanding?'19':'01';
+    $('rwy1-label').textContent='RWY '+rwyBase;
+    $('rwy2-label').textContent='RWY '+(parseInt(rwyBase)+18);
+  }).catch(function(){
+    $('diagram-svg').style.display='none';
+  });
 }
 window.addEventListener('load', function(){
   dbg('THREE='+(typeof THREE)+'  Globe='+(typeof Globe));
