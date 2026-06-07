@@ -44,8 +44,12 @@ export interface FlightPlan {
   /** Filed enroute route string. */
   route: string;
   sid?: string;
+  /** Planned arrival procedure (from the OFP), e.g. "GLASR2". */
+  star?: string;
   /** Planned departure runway, e.g. "16R" (from SimBrief origin.plan_rwy). */
   departureRunway?: string;
+  /** Planned arrival runway, e.g. "10R" (from SimBrief destination.plan_rwy). */
+  arrivalRunway?: string;
   flightRules: FlightRules;
   source: 'simbrief' | 'sample';
   /** OFP details for the info flyout. */
@@ -122,6 +126,16 @@ export type ControllerKind =
   | 'center'
   | 'approach';
 
+/** Machine-readable instruction values carried alongside a reply (for auto-set + the HUD strip). */
+export interface AssignedState {
+  squawk?: string;          // 4-digit octal, e.g. "4517"
+  altitudeFt?: number;      // assigned/cleared altitude
+  headingDeg?: number;      // assigned heading
+  speedKt?: number;         // assigned speed
+  nextFreqMhz?: number;     // frequency to contact next (handoff)
+  nextStation?: string;     // who to contact next, e.g. "Departure"
+}
+
 /** A controller -> pilot reply. */
 export interface Reply {
   from: string; // station label, e.g. "Seattle Delivery"
@@ -130,4 +144,6 @@ export interface Reply {
   expecting: 'readback' | 'none';
   /** If set, the session should switch the active controller to this position. */
   handoff?: ControllerKind | null;
+  /** Structured values for the cockpit (auto-squawk, HUD strip). */
+  assigned?: AssignedState;
 }

@@ -85,6 +85,7 @@ const PARKING_TYPE = [
 // The *_HZ variants take a plain frequency in Hz (no BCD encoding).
 const EVT_COM1_STBY_SET = 70;
 const EVT_COM1_SWAP = 71;
+const EVT_XPNDR_SET = 72; // XPNDR_SET takes a BCD16 squawk code
 // node-simconnect's NotificationPriority is a `const enum` (erased at runtime, so it
 // can't be imported as a value under tsx/esbuild). Use the literal: HIGHEST = 1.
 const PRIORITY_HIGHEST = 1;
@@ -162,6 +163,7 @@ export class SimClient {
     this.handle = handle;
     this.comEventsReady = false;
     this.groundEventsReady = false;
+    this.xpndrReady = false;
     this.defineAirportFacility();
     this.defineParking();
     this.defineState();
@@ -179,6 +181,7 @@ export class SimClient {
     this.handle = null;
     this.comEventsReady = false;
     this.groundEventsReady = false;
+    this.xpndrReady = false;
   }
 
   /**
@@ -209,6 +212,34 @@ export class SimClient {
       return true;
     } catch (e) {
       console.error(`[SimConnect] COM1 auto-tune failed: ${(e as Error).message}`);
+      return false;
+    }
+  }
+
+  private xpndrReady = false;
+
+  /**
+   * Set the transponder code (4-digit octal squawk, e.g. "4517"). XPNDR_SET expects a BCD16
+   * value (one nibble per digit). Best-effort; no-ops if not connected. Returns true if sent.
+   */
+  setSquawk(code: string): boolean {
+    const handle = this.handle;
+    const digits = (code || '').replace(/\D/g, '').slice(0, 4);
+    if (!handle || digits.length !== 4) return false;
+    try {
+      if (!this.xpndrReady) {
+        handle.mapClientEventToSimEvent(EVT_XPNDR_SET, 'XPNDR_SET');
+        this.xpndrReady = true;
+      }
+      // BCD16: each decimal digit becomes a 4-bit nibble. "4517" -> 0x4517.
+      const bcd = parseInt(digits, 16); // digits are 0-7 (octal squawk) so hex parse == BCD
+      handle.transmitClientEvent(
+        SimConnectConstants.OBJECT_ID_USER, EVT_XPNDR_SET, bcd,
+        PRIORITY_HIGHEST, EventFlag.EVENT_FLAG_GROUPID_IS_PRIORITY,
+      );
+      return true;
+    } catch (e) {
+      console.error(`[SimConnect] squawk set failed: ${(e as Error).message}`);
       return false;
     }
   }

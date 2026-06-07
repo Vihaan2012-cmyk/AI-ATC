@@ -32,10 +32,11 @@ export class CenterControl {
     }
     this.state = 'complete';
     const app = this.approachFreq ? ` on ${spokenFreq(this.approachFreq)}` : '';
+    const star = this.fp.star ? ` Expect the ${this.fp.star} arrival.` : '';
     return {
       from: 'Center',
       freqMhz: null,
-      text: `${this.spokenCs}, descend and maintain ${spokenAltitude(INITIAL_DESCENT_FT)}. Contact approach${app}.`,
+      text: `${this.spokenCs}, descend and maintain ${spokenAltitude(INITIAL_DESCENT_FT)}.${star} Contact approach${app}.`,
       expecting: 'none',
       handoff: 'approach',
     };

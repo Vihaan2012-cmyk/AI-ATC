@@ -32,6 +32,7 @@ export class ApproachControl {
   private readonly freq: number | null;
   private readonly towerFreq: number | null;
   private readonly runway: string | null;
+  private readonly star: string | null;
   private readonly spokenCs: string;
   private readonly rwyHdg: number;
   /** Items the pilot must read back for the instruction we just issued. */
@@ -47,7 +48,9 @@ export class ApproachControl {
     this.stationLabel = `${shortenAirportName(apt?.name, fp.destination)} Approach`;
     this.freq = nav.getApproachFrequency(fp.destination);
     this.towerFreq = nav.getTowerFrequency(fp.destination);
-    this.runway = nav.getRunways(fp.destination)[0] ?? null;
+    // Prefer the OFP's planned arrival runway; fall back to the first nav runway.
+    this.runway = fp.arrivalRunway ?? nav.getRunways(fp.destination)[0] ?? null;
+    this.star = fp.star ?? null;
     this.spokenCs = spokenFlightCallsign(fp);
     this.rwyHdg = runwayHeading(this.runway);
   }
@@ -75,8 +78,9 @@ export class ApproachControl {
   private descend(): Reply {
     this.step = 'downwind';
     const v: Vector = { altitudeFt: 5000 };
+    const star = this.star ? ` Descend via the ${this.star} arrival.` : '';
     const rwy = this.runway ? ` Expect I-L-S runway ${spokenRunway(this.runway)}.` : '';
-    return this.vectorReply(`radar contact. Descend and maintain ${spokenAltitude(v.altitudeFt!)}.${rwy}`, v);
+    return this.vectorReply(`radar contact. Descend and maintain ${spokenAltitude(v.altitudeFt!)}.${star}${rwy}`, v);
   }
 
   private vectorDownwind(): Reply {

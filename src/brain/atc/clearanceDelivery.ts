@@ -84,7 +84,10 @@ export class ClearanceDelivery {
     }
     parts.push(`Squawk ${spokenDigits(c.squawk)}.`);
 
-    return { from: this.stationLabel, freqMhz: this.deliveryFreq, text: parts.join(' '), expecting: 'readback' };
+    return {
+      from: this.stationLabel, freqMhz: this.deliveryFreq, text: parts.join(' '), expecting: 'readback',
+      assigned: { squawk: c.squawk, altitudeFt: c.initialAltitudeFt, nextFreqMhz: c.departureFreqMhz ?? undefined },
+    };
   }
 
   private handleReadback(pilotText: string): Reply {

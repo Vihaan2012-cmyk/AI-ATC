@@ -204,7 +204,10 @@ function normalize(ofp: SimBriefOfp): FlightPlan {
     cruiseAltitudeFt: toNumber(ofp.general?.initial_altitude, 35000),
     initialAltitudeFt: 5000, // refined from the SID via navdata later
     route: ofp.general?.route ?? '',
+    sid: procFromNavlog(fixes).sid,
+    star: procFromNavlog(fixes).star,
     departureRunway: ofp.origin?.plan_rwy || undefined,
+    arrivalRunway: ofp.destination?.plan_rwy || undefined,
     flightRules: 'IFR',
     source: 'simbrief',
     aircraftName: str(ofp.aircraft?.name),

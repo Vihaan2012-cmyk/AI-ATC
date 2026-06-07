@@ -266,6 +266,17 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
     if (ok) broadcast({ type: 'radio', com1: mhz, active: tuneMode === 'swap' });
   };
 
+  // Apply structured assignments from a reply: auto-set the squawk and push the clearance
+  // state to the widgets' HUD strip (assigned altitude/heading/squawk/next freq).
+  const applyAssigned = (a: import('../types.js').AssignedState | undefined) => {
+    if (!a) return;
+    if (a.squawk && deps.sim && tuneMode !== 'off') {
+      const ok = deps.sim.setSquawk(a.squawk);
+      if (ok) broadcast({ type: 'squawk', code: a.squawk });
+    }
+    broadcast({ type: 'clearance', assigned: a });
+  };
+
   // Hoppie CPDLC datalink (optional): poll for inbound messages and surface them.
   const hoppie = deps.hoppieLogon
     ? new HoppieClient({ logon: deps.hoppieLogon, callsign: deps.fp.callsign })
@@ -320,6 +331,7 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
           send(ws, { type: 'state', activeController: deps.session.activeKind });
           send(ws, { type: 'scorecard', ...deps.session.scorecard });
           autoTune(reply.freqMhz);
+          applyAssigned(reply.assigned);
         } catch (e) {
           send(ws, { type: 'error', error: (e as Error).message });
         }
