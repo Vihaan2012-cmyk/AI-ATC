@@ -17,6 +17,7 @@ import { FlightPhaseTracker } from '../sim/flightPhase.js';
 import { spokenFlightCallsign } from '../util/aircraft.js';
 import { HoppieClient } from './hoppie.js';
 import { ChatterGenerator, type ChatterLevel } from '../atc/chatter.js';
+import { isCongested, standbyPhrase } from '../atc/congestion.js';
 import { ReactiveMonitor } from '../atc/monitor.js';
 import { buildTrafficPicture, type TrafficPicture } from '../atc/liveTraffic.js';
 import { applyPhraseology, type PhraseologyProfile } from '../atc/phraseologyProfile.js';
@@ -221,6 +222,7 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
   // Latest live position sample, for the dashboard's /api/dashboard snapshot.
   let lastPos: { lat: number; lon: number; hdg: number; altFt: number; gsKt: number; onGround: boolean } | null = null;
   let lastPilotTxAt = Date.now(); // for proactive "say intentions" prompts
+  let pilotTxCount = 0;           // for deterministic frequency-congestion ("stand by")
 
   // Resume a flight across an app/brain restart: restore the session if the saved state is the
   // same flight (matched on callsign + route inside restore()).
@@ -359,6 +361,12 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
           return;
         }
         try {
+          // Frequency congestion: on a busy frequency the controller occasionally says "stand by"
+          // before getting to you. Deterministic cadence by chatter level; never on readback turns.
+          pilotTxCount += 1;
+          if (isCongested(pilotTxCount, deps.chatter ?? 'low') && deps.session.activeKind) {
+            send(ws, { type: 'atc_tx', from: STATION_LABEL[deps.session.activeKind] ?? 'ATC', freq: deps.session.activeFreqMhz, text: standbyPhrase(spokenFlightCallsign(deps.fp)), expecting: 'none' });
+          }
           const reply = await deps.session.handle(msg.text.trim());
           send(ws, { type: 'atc_tx', from: reply.from, freq: reply.freqMhz, text: phrase(reply.text, reply.expecting), expecting: reply.expecting });
           send(ws, { type: 'state', activeController: deps.session.activeKind });
