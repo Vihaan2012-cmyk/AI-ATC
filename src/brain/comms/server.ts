@@ -218,6 +218,27 @@ function dashboardData(deps: CommsDeps, lastPos: { lat: number; lon: number; hdg
   };
 }
 
+// A clean, shareable flight report card for the CURRENT flight, from the live scorecard + plan.
+function reportCard(deps: CommsDeps) {
+  const sc = deps.session.scorecard;
+  const grade = sc.readbackAccuracy >= 95 ? 'A' : sc.readbackAccuracy >= 85 ? 'B'
+    : sc.readbackAccuracy >= 70 ? 'C' : sc.readbackAccuracy >= 50 ? 'D' : 'F';
+  return {
+    callsign: deps.fp.callsign,
+    aircraft: deps.fp.aircraftIcao,
+    route: `${deps.fp.origin} → ${deps.fp.destination}`,
+    rules: deps.fp.flightRules,
+    cruiseFt: deps.fp.cruiseAltitudeFt,
+    readbacks: { correct: sc.readbacksCorrect, expected: sc.readbacksExpected, accuracy: sc.readbackAccuracy },
+    grade,
+    declaredEmergency: sc.declaredEmergency,
+    scenario: sc.scenario,
+    summary: `${deps.fp.callsign} (${deps.fp.aircraftIcao}) ${deps.fp.origin}→${deps.fp.destination}: `
+      + `readback ${sc.readbackAccuracy}% (${sc.readbacksCorrect}/${sc.readbacksExpected}), grade ${grade}`
+      + (sc.declaredEmergency ? `, declared ${sc.scenario ?? 'emergency'}` : ''),
+  };
+}
+
 export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer {
   // Latest live position sample, for the dashboard's /api/dashboard snapshot.
   let lastPos: { lat: number; lon: number; hdg: number; altFt: number; gsKt: number; onGround: boolean } | null = null;
@@ -281,6 +302,13 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store',
         'access-control-allow-origin': '*' });
       res.end(JSON.stringify(dashboardData(deps, lastPos)));
+      return;
+    }
+    // Shareable flight report card for the CURRENT flight (formatted scorecard).
+    if (req.method === 'GET' && path === '/api/report') {
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store',
+        'access-control-allow-origin': '*' });
+      res.end(JSON.stringify(reportCard(deps)));
       return;
     }
     res.writeHead(404);
