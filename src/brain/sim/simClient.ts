@@ -110,6 +110,7 @@ interface PendingGround {
   icao: string;
   acc: GroundLayout;
   taxiNames: string[]; // TAXI_NAME table, indexed
+  parseErrors?: number; // count of skipped records on field-layout mismatch
   resolve: (g: GroundLayout) => void;
   reject: (e: Error) => void;
   timer: ReturnType<typeof setTimeout>;
@@ -351,20 +352,26 @@ export class SimClient {
   }
 
   private onGroundData(g: PendingGround, type: FacilityDataType, b: import('node-simconnect').RawBuffer): void {
-    if (type === FacilityDataType.TAXI_NAME) {
-      g.taxiNames.push(b.readString8().trim());
-    } else if (type === FacilityDataType.TAXI_PARKING) {
-      const nameIdx = b.readInt32();
-      const suffix = b.readString8().trim();
-      const number = b.readInt32();
-      const typeIdx = b.readInt32();
-      const group = PARKING_NAME[nameIdx] ?? 'PARKING';
-      const kind = (PARKING_TYPE[typeIdx] ?? 'RAMP').startsWith('GATE') ? 'GATE'
-        : (PARKING_TYPE[typeIdx] ?? '').includes('CARGO') ? 'CARGO' : 'RAMP';
-      const label = friendlyParking(group, suffix, number, kind);
-      if (label) g.acc.parking.push({ name: label, kind });
+    // The exact TAXI_* field byte-layout varies; never let a mismatched read crash the brain.
+    // On any parse error we just skip that record (taxi routing degrades to "taxi to parking").
+    try {
+      if (type === FacilityDataType.TAXI_NAME) {
+        g.taxiNames.push(b.readString8().trim());
+      } else if (type === FacilityDataType.TAXI_PARKING) {
+        const nameIdx = b.readInt32();
+        const suffix = b.readString8().trim();
+        const number = b.readInt32();
+        const typeIdx = b.readInt32();
+        const group = PARKING_NAME[nameIdx] ?? 'PARKING';
+        const kind = (PARKING_TYPE[typeIdx] ?? 'RAMP').startsWith('GATE') ? 'GATE'
+          : (PARKING_TYPE[typeIdx] ?? '').includes('CARGO') ? 'CARGO' : 'RAMP';
+        const label = friendlyParking(group, suffix, number, kind);
+        if (label) g.acc.parking.push({ name: label, kind });
+      }
+      // AIRPORT record carries no fields we need here (we didn't request any).
+    } catch {
+      g.parseErrors = (g.parseErrors ?? 0) + 1;
     }
-    // AIRPORT record carries no fields we need here (we didn't request any).
   }
 
   private onFacilityDataEnd(d: { userRequestId: number }): void {
