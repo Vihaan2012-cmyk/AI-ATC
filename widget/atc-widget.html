@@ -781,7 +781,7 @@ function connect(){
     else if(m.type==='squawk'){ hudSet('hud-sq', m.code, 'set'); }
     else if(m.type==='radio'){ var rf=Number(m.com1).toFixed(3); $('freq').textContent=rf; entry('sys','','', (m.active?'COM1 tuned to ':'COM1 standby set to ')+rf); }
     else if(m.type==='position'){ pos=m; updatePlanFoot(); updateAircraft(); hudLive(m); }
-    else if(m.type==='traffic'){ updateTraffic(m); }
+    else if(m.type==='traffic'){ updateTraffic(m); updateTrafficMap(m); }
     else if(m.type==='scorecard'){ lastScore=m; renderScore(); }
     else if(m.type==='chatter'){ entry('chatter', m.from, '', m.text); }
     else if(m.type==='cpdlc_status'){ cpdlcOn=!!m.enabled; if($('cpdlcRow')) $('cpdlcRow').style.display = cpdlcOn?'block':'none'; }
@@ -867,12 +867,29 @@ function drawRoute(){
     try{ map.fitBounds(routeLine.getBounds().pad(0.35)); }catch(e){}
   }
 }
+var rangeLayer=null, trafficLayer=null;
 function updateAircraft(){
   if(!map||!pos) return;
   var html='<div style="transform:rotate('+(pos.hdg||0)+'deg);color:#ffd24a;font-size:22px;line-height:1;">&#9650;</div>';
   var icon=L.divIcon({html:html,className:'acicon',iconSize:[22,22],iconAnchor:[11,11]});
   if(!acMarker){ acMarker=L.marker([pos.lat,pos.lon],{icon:icon}).addTo(map); }
   else { acMarker.setLatLng([pos.lat,pos.lon]); acMarker.setIcon(icon); }
+  // Range rings: 10 / 20 / 40 nm around ownship (1 nm = 1852 m).
+  if(rangeLayer){ rangeLayer.remove(); } rangeLayer=L.layerGroup().addTo(map);
+  [10,20,40].forEach(function(nm){
+    L.circle([pos.lat,pos.lon],{radius:nm*1852,color:'#3a5168',weight:1,fill:false,opacity:.5,dashArray:'4 6'}).addTo(rangeLayer);
+  });
+}
+// Plot live traffic markers from a 'traffic' WS message on the PLAN map.
+function updateTrafficMap(m){
+  if(!map) return;
+  if(trafficLayer){ trafficLayer.remove(); } trafficLayer=L.layerGroup().addTo(map);
+  (m.aircraft||[]).forEach(function(t){
+    if(t.lat==null||t.lon==null) return;
+    var col = t.onGround ? '#7e93a8' : (t.vertical==='same' ? '#ff6b6b' : '#6fa8ff');
+    L.circleMarker([t.lat,t.lon],{radius:4,color:col,weight:1,fillOpacity:.9})
+      .bindTooltip(esc(t.callsign||'traffic')+' · '+(t.altFt||0)+'ft',{className:'wptip'}).addTo(trafficLayer);
+  });
 }
 window.addEventListener('resize', function(){ if(map) map.invalidateSize(); });
 
