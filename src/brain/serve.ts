@@ -19,6 +19,7 @@ async function main() {
     region: config.region,
     tone: config.tone,
     liveTraffic: config.liveTraffic,
+    trafficOptions: config.trafficOptions,
   });
   console.log('Widget can now connect. Ctrl+C to stop.');
 

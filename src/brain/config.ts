@@ -38,9 +38,23 @@ export const config = {
   simbriefUserid: process.env.SIMBRIEF_USERID ?? '',
   /**
    * Live AI/MP traffic polling via SimConnect SimObjects. OFF by default — reading other aircraft
-   * has been observed to destabilize some setups. Set LIVE_TRAFFIC=1 to opt in.
+   * has been observed to destabilize some setups. Set LIVE_TRAFFIC=1 to opt in (master switch).
    */
   liveTraffic: process.env.LIVE_TRAFFIC === '1' || process.env.LIVE_TRAFFIC === 'true',
+  /**
+   * Granular traffic sub-toggles, to ISOLATE which part destabilizes MSFS. Each independently
+   * enabled via env. All require liveTraffic=1 (the master). Defaults chosen as the safest combo.
+   *  TRAFFIC_POSITION=1  -> read AI positions via requestDataOnSimObjectType (default on if master)
+   *  TRAFFIC_STRINGS=1   -> ALSO read string vars (ATC ID/AIRLINE/TITLE). KNOWN CRASH RISK; default OFF
+   *  TRAFFIC_POLL=1      -> run the periodic poll loop (default on if master)
+   *  TRAFFIC_ADVISORIES=1-> emit proactive traffic callouts from the picture (default on if master)
+   */
+  trafficOptions: {
+    position: process.env.TRAFFIC_POSITION !== '0',
+    strings: process.env.TRAFFIC_STRINGS === '1' || process.env.TRAFFIC_STRINGS === 'true',
+    poll: process.env.TRAFFIC_POLL !== '0',
+    advisories: process.env.TRAFFIC_ADVISORIES !== '0',
+  },
   /** Path to Navigraph DFD .s3db (or an aircraft's DFD nav DB). Empty/missing -> skipped. */
   navdataPath: process.env.NAVDATA_PATH ?? '',
   /**

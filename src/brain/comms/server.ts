@@ -105,6 +105,8 @@ export interface CommsDeps {
   tone?: import('../atc/phraseologyProfile.js').Tone;
   /** Opt-in: poll live AI/MP traffic via SimConnect. Off by default (can destabilize the sim). */
   liveTraffic?: boolean;
+  /** Granular traffic sub-toggles to isolate the crash source (position/poll/advisories). */
+  trafficOptions?: { position: boolean; strings: boolean; poll: boolean; advisories: boolean };
 }
 
 function fpInfoMessage(fp: FlightPlan, weather: Record<string, MetarInfo>) {
@@ -432,12 +434,15 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
 
         // Refresh the traffic picture ~every 5s, then hand it to the session + UI.
         // Off unless explicitly enabled (LIVE_TRAFFIC=1) — reading AI objects can destabilize MSFS.
+        // Granular sub-toggles (deps.trafficOptions) let the crash source be bisected: position read,
+        // poll loop, and advisory emission are each independently switchable.
+        const to = deps.trafficOptions ?? { position: true, poll: true, advisories: true };
         const now = Date.now();
-        if (deps.liveTraffic && now - lastTrafficPoll > 5000) {
+        if (deps.liveTraffic && to.poll && to.position && now - lastTrafficPoll > 5000) {
           lastTrafficPoll = now;
           sim.fetchTraffic().then((list) => {
             trafficPicture = buildTrafficPicture(s, list);
-            deps.session.setTraffic(trafficPicture);
+            deps.session.setTraffic(to.advisories ? trafficPicture : null);
             broadcast({
               type: 'traffic',
               count: trafficPicture.nearby.length,
@@ -465,7 +470,7 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
           phase,
           controller: deps.session.activeKind,
           msSincePilotTx: Date.now() - lastPilotTxAt,
-          traffic: trafficPicture,
+          traffic: to.advisories ? trafficPicture : null,
         }, Date.now());
         if (adv) {
           broadcast({ type: 'atc_tx', from: STATION_LABEL[deps.session.activeKind] ?? 'ATC', freq: deps.session.activeFreqMhz, text: `${cs}, ${adv.text}`, expecting: 'none' });
