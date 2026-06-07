@@ -17,6 +17,7 @@ import { buildHold } from './holds.js';
 import { parseEnrouteRequests } from '../llm/freeflow.js';
 import { composeEnrouteReply, assignedAltitude, composeUnableReply, isRerouteRequest, composeReroute, composePopupIfr } from './enroute.js';
 import { trafficAdvisory, type TrafficPicture } from './liveTraffic.js';
+import { pickActiveRunway } from './separation.js';
 import { isExplainRequest, explainInstruction, type LastInstruction } from './explain.js';
 import { ConversationMemory } from '../llm/memory.js';
 import { parseMetarDetail, type MetarInfo } from '../sim/weather.js';
@@ -411,18 +412,7 @@ export class ControllerSession {
   }
 
   private pickActiveRunway(icao: string, windDir: number | null): string | null {
-    const rwys = this.nav.getRunways(icao);
-    if (rwys.length === 0) return null;
-    if (windDir == null) return rwys[0] ?? null;
-    let best = rwys[0]!;
-    let bestDiff = 999;
-    for (const r of rwys) {
-      const n = parseInt(r, 10);
-      if (!Number.isFinite(n)) continue;
-      const diff = Math.abs(((windDir - n * 10 + 540) % 360) - 180);
-      if (diff < bestDiff) { bestDiff = diff; best = r; }
-    }
-    return best;
+    return pickActiveRunway(this.nav.getRunways(icao), windDir);
   }
 
   private atisReply(): Reply {
