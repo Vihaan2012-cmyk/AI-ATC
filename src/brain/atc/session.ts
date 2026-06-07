@@ -29,6 +29,7 @@ import { isProgressiveRequest, composeProgressive, buildProgressiveRoute } from 
 import { normalizeVariants } from '../util/phonetic.js';
 import { expandShorthand } from '../llm/shorthand.js';
 import { shouldRemainFrequency, composeRemain } from './handback.js';
+import { composeExpect } from './expectations.js';
 
 interface Controller {
   handle(pilotText: string): Promise<Reply>;
@@ -241,9 +242,16 @@ export class ControllerSession {
           const speedKt = reqs.find((r) => r.speedKt != null)?.speedKt;
           this.lastInstruction = { altitudeFt: alt ?? undefined, fix, speedKt, raw: body };
           this.memory.add({ pilot: pilotText, atc: body, altitudeFt: alt ?? undefined, fix, speedKt, kind: 'enroute' });
+          // Deep-realism: after a climb/descent toward an intermediate level, occasionally tack on an
+          // "expect" clearance for the next step toward cruise. Deterministic per assigned altitude.
+          let composed = body;
+          if (this.deepRealism && alt != null && alt < this.fp.cruiseAltitudeFt && (alt % 2000 === 0)) {
+            const extra = composeExpect('higher', String(this.fp.cruiseAltitudeFt), 10);
+            composed = body.replace(/\.\s*$/, '') + `, ${extra}.`;
+          }
           return {
             from: STATION_LABELS[this.kind] ?? 'ATC', freqMhz: this.activeFreqMhz,
-            text: `${this.spokenCs}, ${body}`, expecting: 'readback',
+            text: `${this.spokenCs}, ${composed}`, expecting: 'readback',
             assigned: alt != null ? { altitudeFt: alt } : undefined,
           };
         }
