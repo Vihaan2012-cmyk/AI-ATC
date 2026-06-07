@@ -145,6 +145,12 @@
         </div>
       </div>
       <div class="sect">
+        <h2>Frequencies</h2>
+        <div id="freqcard" style="padding:12px 15px; display:flex; flex-direction:column; gap:6px;">
+          <div style="font-size:12px; color:var(--dim);">No active field.</div>
+        </div>
+      </div>
+      <div class="sect">
         <h2>Top routes</h2>
         <ul class="routes" id="routes"><li class="empty">No flights yet.</li></ul>
       </div>
@@ -283,6 +289,19 @@ function renderCharts(origin, destination) {
   container.innerHTML = links.map(function(link) {
     return '<a href="' + link.url + '" target="_blank" style="display:inline-flex; align-items:center; padding:8px 12px; background:rgba(47,182,255,.12); border:1px solid var(--line); border-radius:8px; color:#6f8cff; text-decoration:none; font-size:12px; font-weight:600; transition:background .12s, color .12s; cursor:pointer;" onmouseover="this.style.background=\'rgba(47,182,255,.24)\'; this.style.color=\'#a8c8ff\';" onmouseout="this.style.background=\'rgba(47,182,255,.12)\'; this.style.color=\'#6f8cff\';">↗ ' + esc(link.label) + '</a>';
   }).join('');
+}
+// Frequency reference card for the active field (from /api/freqcard).
+function renderFreqCard() {
+  var container = $('freqcard'); if (!container) return;
+  var b = (location.protocol==='http:'||location.protocol==='https:') ? '' : 'http://localhost:8742';
+  fetch(b + '/api/freqcard', { cache: 'no-store' }).then(function(r){ return r.json(); }).then(function(j){
+    if (!j || !j.frequencies || !j.frequencies.length) {
+      container.innerHTML = '<div style="font-size:12px; color:var(--dim);">No published frequencies.</div>';
+      return;
+    }
+    container.innerHTML = '<div style="font-size:11px; color:var(--dim); margin-bottom:2px;">'+esc(j.airport||'')+'</div>'
+      + j.frequencies.map(function(f){ return row(esc(f.label), '<span class="mono">'+esc(f.mhz)+'</span>'); }).join('');
+  }).catch(function(){ /* offline */ });
 }
 function fl(ft){ return ft>=18000 ? ('FL'+Math.round(ft/100)) : (ft.toLocaleString()+' ft'); }
 
@@ -468,6 +487,8 @@ function refresh(){
     .then(function(r){ if(!r.ok) throw new Error('API HTTP '+r.status); return r.json(); })
     .then(function(badges){ try{ renderAchievements(badges); }catch(e){ console.error('[achievements]', e); } })
     .catch(function(e){ console.error('[achievements fetch]', e); });
+  // Frequency reference card
+  try { renderFreqCard(); } catch(e){ console.error('[freqcard]', e); }
 }
 window.addEventListener('load', function(){
   dbg('THREE='+(typeof THREE)+'  Globe='+(typeof Globe));
