@@ -21,6 +21,5 @@ export interface GoAroundContext {
 export function composeGoAround(ctx: GoAroundContext): string {
   const base = ctx.fieldElevationFt ?? 0;
   const climbTo = Math.round((base + 3000) / 500) * 500;
-  const rwy = ctx.runway ? `, fly runway heading ${spokenRunway(ctx.runway)}` : ', fly runway heading';
-  return `roger, going around. Climb and maintain ${spokenAltitude(climbTo)}${rwy}, expect vectors for re-sequence.`;
+  return `roger, going around. Climb and maintain ${spokenAltitude(climbTo)}, fly runway heading, expect vectors for re-sequence.`;
 }
