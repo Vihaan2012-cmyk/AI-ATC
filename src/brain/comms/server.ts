@@ -373,7 +373,7 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
 
     ws.on('close', () => clients.delete(ws));
     ws.on('message', async (raw) => {
-      let msg: { type?: string; text?: string; to?: string; service?: string };
+      let msg: { type?: string; text?: string; to?: string; service?: string; mhz?: number };
       try { msg = JSON.parse(String(raw)); } catch { return; }
       if (msg.type === 'pilot_tx' && typeof msg.text === 'string' && msg.text.trim()) {
         lastPilotTxAt = Date.now();
@@ -433,6 +433,12 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
           text: ok ? `${spokenFlightCallsign(deps.fp)}, ${GROUND_SVC_SPOKEN[svc] ?? (label + ' requested')}.`
                    : `Ground service unavailable (is MSFS in a flight?)`,
           expecting: 'none' });
+      } else if (msg.type === 'tune_com' && typeof msg.mhz === 'number') {
+        // Manual COM swap from the radio panel — tune COM1 active to the requested frequency.
+        if (deps.sim) {
+          const ok = deps.sim.tuneCom1(msg.mhz, true);
+          if (ok) broadcast({ type: 'radio', com1: msg.mhz, active: true });
+        }
       } else if (msg.type === 'scenario' && typeof msg.service === 'string') {
         // Declare a non-normal scenario; ATC responds with priority handling. Squawk 7700 too.
         const reply = deps.session.declareScenario(msg.service);

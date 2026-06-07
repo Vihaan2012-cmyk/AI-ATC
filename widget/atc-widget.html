@@ -63,6 +63,14 @@
   .radio .freq { margin-left: auto; font-size: 16px; font-weight: 700; color: #74e6c2; letter-spacing: 1px; }
   .radio .txind { font: 700 10px ui-monospace, Consolas, monospace; color: #ff5a5a; letter-spacing: 1px; padding: 2px 7px; border: 1px solid #5a1d1d; border-radius: 4px; background: #2a0e0e; animation: txpulse 1s ease-in-out infinite; }
   @keyframes txpulse { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
+  /* COM1/COM2-style radio panel */
+  .companel { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; padding: 5px 13px; background: #0b131d; border-bottom: 1px solid #182433; }
+  .comslot { display: flex; flex-direction: column; gap: 1px; }
+  .comslot .comlbl { font: 700 8px ui-monospace, Consolas, monospace; letter-spacing: 1px; color: #5f7488; }
+  .comslot .comval { font: 700 14px ui-monospace, Consolas, monospace; color: #74e6c2; }
+  .comslot .comval.stby { color: #e0a14a; }
+  .comswap { margin-left: auto; background: #16273a; color: #cfe0f2; border: 1px solid #213447; border-radius: 5px; font-size: 14px; padding: 3px 9px; cursor: pointer; }
+  .comswap:hover { background: #1d3047; }
   .radio .freq:empty::after { content: "---.---"; color: #3a4a5c; }
   /* clearance HUD strip — persistent active-clearance readout */
   .hud { flex: 0 0 auto; display: flex; gap: 1px; background: #0a121b; border-bottom: 1px solid #182433; overflow-x: auto; }
@@ -253,6 +261,11 @@
           <span class="stn" id="stn"></span>
           <span class="freq mono" id="freq"></span>
           <span class="txind" id="txind" style="display:none;">● TX</span>
+        </div>
+        <div class="companel" id="companel">
+          <div class="comslot"><span class="comlbl">COM1 ACT</span><span class="comval mono" id="com1act">—</span></div>
+          <div class="comslot"><span class="comlbl">STBY</span><span class="comval mono stby" id="com1sby">—</span></div>
+          <button class="comswap" id="comswap" title="Swap active/standby">&#8646;</button>
         </div>
         <div class="hud" id="hud" style="display:flex;">
           <div class="hudc"><span class="hk">ALT</span><span class="hv" id="hud-alt">—</span></div>
@@ -452,6 +465,16 @@ function setClearanceBanner(text){
   // Strip the leading callsign for brevity.
   t.textContent=String(text||'').replace(/^[^,]+,\s*/,''); b.style.display='flex';
 }
+// COM1 active/standby panel. Handoff frequencies auto-load standby; swap flips them.
+var comActive=null, comStandby=null;
+function fmtMhz(v){ var n=Number(v); return isFinite(n)&&n>0 ? n.toFixed(3) : '—'; }
+function comSetActive(mhz){ comActive=Number(mhz); var e=$('com1act'); if(e) e.textContent=fmtMhz(comActive); }
+function comSetStandby(mhz){ comStandby=Number(mhz); var e=$('com1sby'); if(e) e.textContent=fmtMhz(comStandby); }
+if($('comswap')) $('comswap').addEventListener('click',function(){
+  var a=comActive; comSetActive(comStandby); comSetStandby(a);
+  // Ask the brain/sim to actually tune the new active frequency.
+  if(comActive && ws && ws.readyState===1){ ws.send(JSON.stringify({type:'tune_com', mhz:comActive})); }
+});
 
 // ---- voice (offline system TTS, distinct voice per controller) ----
 var voiceCfg = { enabled:false, rate:1.05, vol:1, piper:false, clicks:false, ambience:false };
@@ -840,10 +863,10 @@ function connect(){
     else if(m.type==='fpinfo'){ fpinfo=m; if($('drawer').classList.contains('open')) renderDrawer(); renderGroundAircraft(); }
     else if(m.type==='atc_tx'){ var f=m.freq?Number(m.freq).toFixed(3):''; typeEntry(m.from,f,m.text); speak(m.text, curKind); if(m.freq) $('freq').textContent=Number(m.freq).toFixed(3); hudExpecting(m.expecting); if(m.expecting==='readback') setClearanceBanner(m.text); }
     else if(m.type==='state'){ $('stn').textContent=STATION[m.activeController]||''; curKind=m.activeController||curKind; renderProgress(); }
-    else if(m.type==='clearance'){ hudApply(m.assigned||{}); }
+    else if(m.type==='clearance'){ hudApply(m.assigned||{}); if(m.assigned&&m.assigned.nextFreqMhz!=null) comSetStandby(m.assigned.nextFreqMhz); }
     else if(m.type==='squawk'){ hudSet('hud-sq', m.code, 'set'); }
-    else if(m.type==='radio'){ var rf=Number(m.com1).toFixed(3); $('freq').textContent=rf; entry('sys','','', (m.active?'COM1 tuned to ':'COM1 standby set to ')+rf); }
-    else if(m.type==='position'){ pos=m; updatePlanFoot(); updateAircraft(); hudLive(m); }
+    else if(m.type==='radio'){ var rf=Number(m.com1).toFixed(3); $('freq').textContent=rf; if(m.active){ comSetActive(m.com1); } else { comSetStandby(m.com1); } entry('sys','','', (m.active?'COM1 tuned to ':'COM1 standby set to ')+rf); }
+    else if(m.type==='position'){ pos=m; updatePlanFoot(); updateAircraft(); hudLive(m); if(m.com1Mhz) comSetActive(m.com1Mhz); }
     else if(m.type==='traffic'){ updateTraffic(m); updateTrafficMap(m); }
     else if(m.type==='scorecard'){ lastScore=m; renderScore(); }
     else if(m.type==='chatter'){ entry('chatter', m.from, '', m.text); }
