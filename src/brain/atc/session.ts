@@ -17,6 +17,8 @@ import { buildHold } from './holds.js';
 import { parseEnrouteRequests } from '../llm/freeflow.js';
 import { composeEnrouteReply, assignedAltitude, composeUnableReply } from './enroute.js';
 import { trafficAdvisory, type TrafficPicture } from './liveTraffic.js';
+import { isExplainRequest, explainInstruction, type LastInstruction } from './explain.js';
+import { ConversationMemory } from '../llm/memory.js';
 import { parseMetarDetail, type MetarInfo } from '../sim/weather.js';
 
 interface Controller {
@@ -55,6 +57,10 @@ export class ControllerSession {
   private awaitingReadback = false;
   /** Latest live-traffic picture from the sim, for "say traffic" queries + traffic-aware replies. */
   private traffic: TrafficPicture | null = null;
+  /** The last structured instruction ATC issued, for the "explain that" clarifier. */
+  private lastInstruction: LastInstruction | null = null;
+  /** Per-session conversational memory for back-references. */
+  private readonly memory = new ConversationMemory();
 
   constructor(
     private fp: FlightPlan,
@@ -130,6 +136,13 @@ export class ControllerSession {
     if (/\bhold(ing)?\b|hold as published|enter the hold/i.test(pilotText)) {
       return this.holdReply();
     }
+    // "explain that" -> restate the last instruction in plain English.
+    if (isExplainRequest(pilotText)) {
+      return {
+        from: STATION_LABELS[this.kind] ?? this.lastFrom, freqMhz: this.activeFreqMhz,
+        text: `${this.spokenCs}, ${explainInstruction(this.lastInstruction)}`, expecting: 'none',
+      };
+    }
     // "say traffic" / "any traffic" / "traffic advisories" -> read back the live traffic picture.
     if (/\b(say|any|request|report)\s+traffic\b|\btraffic\s+(advisor|in sight|call)/i.test(pilotText)) {
       return this.trafficReply();
@@ -154,6 +167,10 @@ export class ControllerSession {
         if (body) {
           const alt = assignedAltitude(reqs, ctx);
           if (alt != null) this.lastAssignedAltFt = alt;
+          const fix = reqs.find((r) => r.fix)?.fix;
+          const speedKt = reqs.find((r) => r.speedKt != null)?.speedKt;
+          this.lastInstruction = { altitudeFt: alt ?? undefined, fix, speedKt, raw: body };
+          this.memory.add({ pilot: pilotText, atc: body, altitudeFt: alt ?? undefined, fix, speedKt, kind: 'enroute' });
           return {
             from: STATION_LABELS[this.kind] ?? 'ATC', freqMhz: this.activeFreqMhz,
             text: `${this.spokenCs}, ${body}`, expecting: 'readback',

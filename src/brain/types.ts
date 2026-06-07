@@ -170,4 +170,6 @@ export interface Reply {
   handoff?: ControllerKind | null;
   /** Structured values for the cockpit (auto-squawk, HUD strip). */
   assigned?: AssignedState;
+  /** True when ATC was unsure of the pilot's intent and fell back to a clarification. */
+  lowConfidence?: boolean;
 }
