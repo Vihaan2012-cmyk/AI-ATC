@@ -39,3 +39,7 @@ training/data/
 training/out/
 .venv/
 launch-dev.cmd
+.codegraph/
+.mcp.json
+.claude/settings.json
+.claude/settings.local.json
