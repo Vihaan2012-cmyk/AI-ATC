@@ -195,6 +195,18 @@ ipcMain.handle('config:get', () => {
   };
 });
 ipcMain.handle('config:save', (_e, cfg) => writeEnv(cfg));
+// Restart the brain so config changes (SimBrief ID, model, etc.) take effect without relaunching
+// the whole app. Stops the current brain, waits briefly for the port to free, then starts fresh.
+ipcMain.handle('brain:restart', async () => {
+  try {
+    stopBrain();
+    await new Promise((r) => setTimeout(r, 1200)); // let the WS port (8742) release
+    startBrain();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e && e.message || e) };
+  }
+});
 
 // ---- Logbook (persistent flight history) ----
 function logbookFile() { return path.join(userData(), 'logbook.json'); }

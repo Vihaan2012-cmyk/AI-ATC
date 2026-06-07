@@ -370,6 +370,8 @@
             <div class="row"><label>Run on</label><select id="cfgDevice"><option value="auto">Auto (let it decide)</option><option value="gpu">GPU</option><option value="cpu">CPU</option></select></div>
             <div class="note" style="color:#e0a14a;">&#9888; Leave the model as <b>myaimodels/atc-nlu</b> (fast, ATC-tuned) unless you know what you're doing. For free-form phrasing you can use <b>qwen2.5:14b</b>, but it's larger and slower.</div>
             <button class="btn" id="saveConn">Save connection &amp; AI</button>
+            <button class="btn" id="restartBrain" style="background:#16273a;color:#cfe0f2;margin-top:6px;">Restart brain (apply changes)</button>
+            <div class="note" id="restartNote" style="min-height:14px;"></div>
             <div class="note">Saved to the brain's .env. Restart the brain to apply.</div>
           </div>
           <div class="sect">
@@ -1040,8 +1042,17 @@ function buildConnCfg(){
   return cfg;
 }
 $('saveConn').addEventListener('click',function(){
-  if(EL){ EL.saveConfig(buildConnCfg()).then(function(){ entry('sys','','','Saved. Restart the brain to apply.'); var t=document.querySelector('.tab[data-v="comms"]'); if(t)t.click(); }); }
+  if(EL){ EL.saveConfig(buildConnCfg()).then(function(){ entry('sys','','','Saved. Click "Restart brain" to apply.'); var t=document.querySelector('.tab[data-v="comms"]'); if(t)t.click(); }); }
   else entry('sys','','','Config editing requires the desktop app.');
+});
+if($('restartBrain')) $('restartBrain').addEventListener('click',function(){
+  if(!(EL&&EL.restartBrain)){ if($('restartNote')) $('restartNote').textContent='Desktop app only.'; return; }
+  var b=$('restartBrain'); b.disabled=true; b.textContent='Restarting…';
+  if($('restartNote')) $('restartNote').textContent='';
+  EL.restartBrain().then(function(r){
+    b.disabled=false; b.textContent='Restart brain (apply changes)';
+    if($('restartNote')) $('restartNote').textContent = (r&&r.ok) ? 'Brain restarted — reconnecting…' : ('Restart failed: '+((r&&r.error)||'unknown'));
+  });
 });
 // Auto-save the connection fields when you leave them, so you don't have to remember the button.
 // Quiet: persists in the background and shows a small inline confirmation, no tab jump.
