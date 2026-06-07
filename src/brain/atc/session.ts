@@ -165,6 +165,36 @@ export class ControllerSession {
     };
   }
 
+  /** Serializable session state, for resuming a flight across an app restart. */
+  snapshot(): Record<string, unknown> {
+    return {
+      callsign: this.fp.callsign, origin: this.fp.origin, destination: this.fp.destination,
+      kind: this.kind, arriving: this.arriving, lastFrom: this.lastFrom,
+      lastAssignedAltFt: this.lastAssignedAltFt, emergencyStep: this.emergencyStep,
+      scenario: this.scenario, readbacksExpected: this.readbacksExpected,
+      readbacksCorrect: this.readbacksCorrect, declaredEmergency: this.declaredEmergency,
+    };
+  }
+
+  /** Restore from a snapshot — only if it's the SAME flight (callsign + route), else ignore. */
+  restore(s: Record<string, unknown> | null): boolean {
+    if (!s || s.callsign !== this.fp.callsign || s.origin !== this.fp.origin || s.destination !== this.fp.destination) {
+      return false;
+    }
+    this.arriving = !!s.arriving;
+    this.kind = (s.kind as ControllerKind) ?? 'delivery';
+    const rebuilt = this.build(this.kind);
+    if (rebuilt) this.active = rebuilt;
+    this.lastFrom = typeof s.lastFrom === 'string' ? s.lastFrom : 'ATC';
+    this.lastAssignedAltFt = typeof s.lastAssignedAltFt === 'number' ? s.lastAssignedAltFt : null;
+    this.emergencyStep = typeof s.emergencyStep === 'number' ? s.emergencyStep : 0;
+    this.scenario = typeof s.scenario === 'string' ? s.scenario : null;
+    this.readbacksExpected = typeof s.readbacksExpected === 'number' ? s.readbacksExpected : 0;
+    this.readbacksCorrect = typeof s.readbacksCorrect === 'number' ? s.readbacksCorrect : 0;
+    this.declaredEmergency = !!s.declaredEmergency;
+    return true;
+  }
+
   /** Pull an assigned altitude out of an ATC reply (e.g. "climb and maintain five thousand"). */
   private captureAssignedAltitude(text: string): void {
     const ft = parseSpokenAltitudeFt(text);

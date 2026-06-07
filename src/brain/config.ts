@@ -70,6 +70,9 @@ export const config = {
   /** Hoppie ACARS/CPDLC logon code (optional; enables text datalink). */
   hoppieLogon: process.env.HOPPIE_LOGON ?? '',
 
+  /** Where to persist session state so a flight resumes across an app/brain restart. */
+  sessionStatePath: process.env.SESSION_STATE_PATH ?? './cache/session.json',
+
   /** Disk cache for SimConnect facility data (lets the brain run without the sim). */
   facilityCacheDir: process.env.FACILITY_CACHE_DIR ?? './cache/facilities',
   /** Cache size cap in bytes (default 16 GiB). LRU eviction when exceeded. 0 = unlimited. */

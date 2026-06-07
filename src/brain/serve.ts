@@ -15,6 +15,7 @@ async function main() {
     autoTuneCom: config.autoTuneCom,
     hoppieLogon: config.hoppieLogon,
     chatter: config.chatter,
+    statePath: config.sessionStatePath,
   });
   console.log('Widget can now connect. Ctrl+C to stop.');
 

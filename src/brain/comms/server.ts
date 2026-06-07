@@ -9,7 +9,7 @@
 //                     { type:'state', activeController }
 //                     { type:'position', lat, lon, hdg, altFt, gsKt, onGround }
 import { createServer } from 'node:http';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { WebSocketServer, type WebSocket } from 'ws';
@@ -96,6 +96,8 @@ export interface CommsDeps {
   hoppieLogon?: string;
   /** Ambient radio chatter level. */
   chatter?: ChatterLevel;
+  /** Path to persist/restore session state across restarts (resume a flight). */
+  statePath?: string;
 }
 
 function fpInfoMessage(fp: FlightPlan, weather: Record<string, MetarInfo>) {
@@ -210,6 +212,21 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
   // Latest live position sample, for the dashboard's /api/dashboard snapshot.
   let lastPos: { lat: number; lon: number; hdg: number; altFt: number; gsKt: number; onGround: boolean } | null = null;
   let lastPilotTxAt = Date.now(); // for proactive "say intentions" prompts
+
+  // Resume a flight across an app/brain restart: restore the session if the saved state is the
+  // same flight (matched on callsign + route inside restore()).
+  if (deps.statePath) {
+    try {
+      const saved = JSON.parse(readFileSync(deps.statePath, 'utf8'));
+      if (deps.session.restore(saved)) {
+        console.log(`Resumed prior session: ${deps.fp.callsign} at ${deps.session.activeKind}.`);
+      }
+    } catch { /* no prior state */ }
+  }
+  const saveState = () => {
+    if (!deps.statePath) return;
+    try { mkdirSync(dirname(deps.statePath), { recursive: true }); writeFileSync(deps.statePath, JSON.stringify(deps.session.snapshot())); } catch { /* ignore */ }
+  };
   const http = createServer((req, res) => {
     const path = (req.url ?? '/').split('?')[0] ?? '/';
     if (req.method === 'GET' && (path === '/' || path === '/atc-widget.html')) {
@@ -334,6 +351,7 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
           send(ws, { type: 'scorecard', ...deps.session.scorecard });
           autoTune(reply.freqMhz);
           applyAssigned(reply.assigned);
+          saveState();
         } catch (e) {
           send(ws, { type: 'error', error: (e as Error).message });
         }
@@ -372,6 +390,7 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
         send(ws, { type: 'atc_tx', from: reply.from, freq: reply.freqMhz, text: reply.text, expecting: reply.expecting });
         send(ws, { type: 'squawk', code: '7700' });
         send(ws, { type: 'scorecard', ...deps.session.scorecard });
+        saveState();
       }
     });
   });
