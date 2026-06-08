@@ -30,6 +30,9 @@ import { normalizeVariants } from '../util/phonetic.js';
 import { expandShorthand } from '../llm/shorthand.js';
 import { shouldRemainFrequency, composeRemain } from './handback.js';
 import { composeExpect } from './expectations.js';
+import { nearestAirport } from '../navdata/nearest.js';
+import { AIRPORTS } from '../navdata/airports.js';
+import { splitTransmissions } from '../llm/multiIntent.js';
 
 interface Controller {
   handle(pilotText: string): Promise<Reply>;
@@ -113,6 +116,21 @@ export class ControllerSession {
   }
   private lastHeadingDeg: number | null = null;
 
+  /** Feed the live aircraft position, used to find the nearest airport for diversions. */
+  setPosition(lat: number, lon: number): void {
+    if (Number.isFinite(lat) && Number.isFinite(lon)) this.lastPos = { lat, lon };
+  }
+  private lastPos: { lat: number; lon: number } | null = null;
+
+  /** Nearest known airport to the live position (excludes the current destination), or null. */
+  private nearestDivertField(): string | null {
+    if (!this.lastPos) return null;
+    const list = Object.entries(AIRPORTS)
+      .filter(([icao]) => icao !== this.fp.destination)
+      .map(([icao, c]) => ({ icao, lat: c[0], lon: c[1] }));
+    return nearestAirport(this.lastPos.lat, this.lastPos.lon, list)?.icao ?? null;
+  }
+
   /** Enable deep-realism extras (handbacks, expect-clearances, amendments). Off by default. */
   setDeepRealism(on: boolean): void { this.deepRealism = on; }
   private deepRealism = false;
@@ -145,11 +163,23 @@ export class ControllerSession {
     return Math.abs(this.com1Mhz - want) < 0.011;
   }
 
-  async handle(pilotTextRaw: string): Promise<Reply> {
+  async handle(pilotTextRaw: string, isSplitPart = false): Promise<Reply> {
     // Pre-process: normalize ATC speech variants ("niner"->"nine", NATO letters) and expand common
     // pilot shorthand, so downstream detection/parsing sees cleaner text. Additive — original intent
     // is preserved; this only canonicalizes phrasing.
     const pilotText = expandShorthand(normalizeVariants(pilotTextRaw));
+    // Multi-intent: if the pilot combined separate requests ("request lower and say traffic"),
+    // handle each independently and join the replies. Guard against recursion via isSplitPart.
+    if (!isSplitPart) {
+      const parts = splitTransmissions(pilotText);
+      if (parts.length > 1) {
+        const replies: Reply[] = [];
+        for (const part of parts) replies.push(await this.handle(part, true));
+        const body = replies.map((r) => r.text.replace(new RegExp('^' + this.spokenCs + ',?\\s*', 'i'), '')).join(' ');
+        const last = replies[replies.length - 1]!;
+        return { from: last.from, freqMhz: last.freqMhz, text: `${this.spokenCs}, ${body}`, expecting: replies.some((r) => r.expecting === 'readback') ? 'readback' : 'none', assigned: last.assigned, handoff: last.handoff };
+      }
+    }
     // Emergency takes over the session until resolved.
     if (this.emergencyStep > 0 || this.isEmergency(pilotText)) return this.emergencyReply(pilotText);
     if (/\batis\b/i.test(pilotText)) return this.atisReply();
@@ -160,9 +190,9 @@ export class ControllerSession {
     if (/\bhold(ing)?\b|hold as published|enter the hold/i.test(pilotText)) {
       return this.holdReply();
     }
-    // Diversion to the alternate (pilot-initiated).
+    // Diversion (pilot-initiated): prefer the filed alternate, else the nearest known airport.
     if (isDiversionRequest(pilotText)) {
-      const alt = this.fp.alternate ?? this.fp.destination;
+      const alt = this.fp.alternate ?? this.nearestDivertField() ?? this.fp.destination;
       const altName = shortenAirportName(this.nav.getAirport(alt)?.name, alt);
       return { from: STATION_LABELS[this.kind] ?? this.lastFrom, freqMhz: this.activeFreqMhz, text: composeDiversion(this.spokenCs, altName), expecting: 'readback' };
     }
@@ -466,8 +496,9 @@ export class ControllerSession {
 
   /** Nearest of origin/destination by great-circle from the last known position-less heuristic. */
   private nearestSuitable(): string | null {
-    // Prefer destination if we're already arriving, else origin; both have known runways.
-    return this.arriving ? this.fp.destination : this.fp.origin;
+    // In an emergency, the genuinely nearest known airport (from live position) is best; fall back
+    // to destination/origin when position is unknown.
+    return this.nearestDivertField() ?? (this.arriving ? this.fp.destination : this.fp.origin);
   }
 
   private atisLetter(): string {
