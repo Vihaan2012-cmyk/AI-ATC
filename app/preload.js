@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('atcWin', {
   saveSettings: (s) => ipcRenderer.invoke('settings:save', s),
   getConfig: () => ipcRenderer.invoke('config:get'),
   saveConfig: (c) => ipcRenderer.invoke('config:save', c),
+  getProfiles: () => ipcRenderer.invoke('config:getProfiles'),
+  saveProfile: (p) => ipcRenderer.invoke('config:saveProfile', p),
   openWizard: () => ipcRenderer.invoke('wiz:open'),
   getLogbook: () => ipcRenderer.invoke('logbook:get'),
   addLogbook: (e) => ipcRenderer.invoke('logbook:add', e),

@@ -241,6 +241,19 @@ ipcMain.handle('open:dashboard', () => {
   return shell.openExternal(`http://localhost:${port}/dashboard`);
 });
 
+// ---- Aircraft profiles ----
+function profilesFile() { return path.join(userData(), 'profiles.json'); }
+ipcMain.handle('config:getProfiles', () => readJson(profilesFile(), { profiles: {} }));
+ipcMain.handle('config:saveProfile', (_e, profile) => {
+  const store = readJson(profilesFile(), { profiles: {} });
+  if (profile && typeof profile === 'object' && profile.aircraftIcao) {
+    store.profiles = store.profiles || {};
+    store.profiles[profile.aircraftIcao.toUpperCase()] = profile;
+    writeJson(profilesFile(), store);
+  }
+  return store;
+});
+
 // ---- Piper HD voices ----
 const plog = (line) => { if (win) win.webContents.send('piper:log', line); };
 ipcMain.handle('piper:status', async () => { try { return await getPiper().status(); } catch (e) { return { error: e.message, binary: false, total: 0, installed: 0, continents: [] }; } });
