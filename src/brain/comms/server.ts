@@ -254,6 +254,44 @@ function reportCard(deps: CommsDeps, conformance: number | null) {
   };
 }
 
+// Cache of resolved airport layouts (per ICAO) so we don't re-hit SimConnect every request.
+const _airportCache = new Map<string, unknown>();
+
+// Build a full airport layout for the diagram: every runway with true heading + length, plus
+// parking when available. Prefers the sim's facility data; falls back to nav runway idents.
+async function airportLayout(deps: CommsDeps, icao: string) {
+  if (_airportCache.has(icao)) return _airportCache.get(icao);
+  let runways: Array<{ ident: string; reciprocal: string; headingTrue: number; lengthFt: number; widthFt: number }> = [];
+  let name = deps.nav.getAirport(icao)?.name ?? icao;
+  let parking: Array<{ name: string; lat?: number; lon?: number }> = [];
+  // 1) Try the sim's facility data (real geometry).
+  if (deps.sim?.connected) {
+    try {
+      const fac = await deps.sim.fetchAirport(icao);
+      if (fac?.runways?.length) {
+        name = fac.name || name;
+        runways = fac.runways.map((r) => ({ ident: r.primary, reciprocal: r.secondary, headingTrue: r.headingTrue, lengthFt: r.lengthFt, widthFt: r.widthFt }));
+      }
+      const g = await deps.sim.fetchGroundLayout(icao).catch(() => null);
+      if (g?.parking?.length) parking = g.parking.map((p) => ({ name: p.name, lat: p.lat, lon: p.lon }));
+    } catch { /* fall through to nav */ }
+  }
+  // 2) Fallback: nav runway idents (no geometry — derive heading from the number).
+  if (runways.length === 0) {
+    const seen = new Set<string>();
+    for (const id of deps.nav.getRunways(icao)) {
+      const n = parseInt(id, 10);
+      if (!Number.isFinite(n) || seen.has(id)) continue;
+      seen.add(id);
+      const recipNum = ((n + 18 - 1) % 36) + 1;
+      runways.push({ ident: id, reciprocal: String(recipNum).padStart(2, '0'), headingTrue: n * 10, lengthFt: 9000, widthFt: 150 });
+    }
+  }
+  const layout = { icao, name, runways, parking, source: deps.sim?.connected ? 'sim' : 'nav' };
+  _airportCache.set(icao, layout);
+  return layout;
+}
+
 export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer {
   deps.session.setDeepRealism(!!deps.deepRealism);
   // Latest live position sample, for the dashboard's /api/dashboard snapshot.
@@ -287,7 +325,7 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
       : baseProfile.tone;
     return applyPhraseology(text, { ...baseProfile, tone }, expecting === 'none');
   };
-  const http = createServer((req, res) => {
+  const http = createServer(async (req, res) => {
     const path = (req.url ?? '/').split('?')[0] ?? '/';
     if (req.method === 'GET' && (path === '/' || path === '/atc-widget.html')) {
       try {
@@ -363,6 +401,16 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
       const suggested = suggestCruiseAltitude(hdg, deps.fp.cruiseAltitudeFt);
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store', 'access-control-allow-origin': '*' });
       res.end(JSON.stringify({ headingDeg: Math.round(hdg), planned: deps.fp.cruiseAltitudeFt, suggested, direction: (hdg >= 45 && hdg < 225) ? 'eastbound' : 'westbound' }));
+      return;
+    }
+    // Full airport layout (ALL runways with heading/length + parking) for a real diagram.
+    // ?icao=XXXX overrides; defaults to the active field. Uses the sim's facility data (cached).
+    if (req.method === 'GET' && path === '/api/airport') {
+      const q = (req.url ?? '').split('?')[1] ?? '';
+      const icaoParam = new URLSearchParams(q).get('icao');
+      const icao = (icaoParam || (deps.session.isArriving ? deps.fp.destination : deps.fp.origin)).toUpperCase();
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store', 'access-control-allow-origin': '*' });
+      res.end(JSON.stringify(await airportLayout(deps, icao)));
       return;
     }
     res.writeHead(404);
