@@ -12,11 +12,19 @@ A real-time Air Traffic Control panel for Microsoft Flight Simulator 2020+ that 
 
 ## Features
 
-- **Live Communications Log**: See all ATC transmissions, your readbacks, and system messages in real time.
-- **Quick-Action Buttons**: One-click requests for ATIS, clearance, pushback, taxi, ready, and traffic.
-- **Clearance Readout**: Always-visible current altitude, heading, speed, squawk code, and next frequency.
-- **Text Input**: Type your own transmissions if voice input isn't available in MSFS.
-- **Offline Fallback**: Shows a friendly message if the desktop brain isn't running; reconnects automatically.
+This panel is **generated from the desktop widget** (`widget/atc-widget.html` via `build-panel.mjs`),
+so it mirrors the full UI — COMMS, PLAN, GROUND, Flight School, and Settings tabs — all driven by the
+same `ws://localhost:8742` connection to the brain. Run `node msfs-panel/build-panel.mjs` after any
+widget change to regenerate the panel (and its `layout.json`).
+
+## Rebuilding the package (IMPORTANT)
+
+MSFS will not load the package unless `layout.json` is an up-to-date index of every file. After ANY
+change to files in `msfs-panel/`:
+
+1. Run `node msfs-panel/build-panel.mjs` — this regenerates the panel HTML **and** runs
+   `MSFSLayoutGenerator.exe` (looked up in your Downloads) to rebuild `layout.json`.
+2. Or run the generator manually: drag `msfs-panel/layout.json` onto `MSFSLayoutGenerator.exe`.
 
 ## Requirements
 
@@ -24,11 +32,17 @@ A real-time Air Traffic Control panel for Microsoft Flight Simulator 2020+ that 
 - **Network**: The panel connects to the brain over `ws://localhost:8742` (local, no internet needed).
 - **MSFS 2020+**: Tested on MSFS 2020 and 2024; may work on earlier versions.
 
-## Known Limitations
+## Known Limitations (honest)
 
-- **No Audio**: CoherentGT (MSFS's rendering engine) blocks audio playback in in-sim panels. Voice transmissions are played via the desktop app instead.
-- **No Map**: To keep the panel lightweight, the interactive map is only in the desktop widget.
-- **Read-Only**: You cannot adjust frequencies, transponder codes, or flight-planned waypoints from the panel (use the desktop app or your avionics).
+- **CoherentGT may block `ws://localhost`**: MSFS's UI engine restricts network access from panels.
+  If the panel shows "start the desktop app" even when the brain is running, CoherentGT is blocking
+  the WebSocket — in that case use the desktop widget. **This is the main unknown and needs in-sim
+  testing.** The panel + WebSocket are confirmed working in a normal browser.
+- **The PLAN map (Leaflet) loads from a CDN** and will likely not render in-sim (no internet in
+  CoherentGT); it degrades gracefully to no-map. Everything else works without the CDN.
+- **Audio/voice** plays through the desktop app, not the panel.
+- **No 3D world overlay**: an HTML panel cannot draw taxi routes onto the actual taxiways — that
+  requires an MSFS SDK gauge/scenery addon, not a toolbar panel. The GROUND tab shows a 2D diagram.
 
 ## Troubleshooting
 

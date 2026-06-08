@@ -1,0 +1,12 @@
+{
+  "InGamePanels": [
+    {
+      "name": "AI ATC",
+      "type": "ATCPanel",
+      "path": "/InGamePanels/ATCPanel/ATCPanel.html",
+      "icon": "/InGamePanels/ATCPanel/icon.svg",
+      "defaultSize": { "width": 640, "height": 760 },
+      "minSize": { "width": 400, "height": 360 }
+    }
+  ]
+}

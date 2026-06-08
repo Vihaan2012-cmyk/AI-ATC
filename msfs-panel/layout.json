@@ -1,20 +1,39 @@
 {
-  "uuid": "ATC-PANEL-MSFS-2020",
-  "title": "ATC Panel",
-  "content_type": "IN-GAME-PANELS",
-  "category": "EFB",
-  "width": 1024,
-  "height": 720,
-  "defaultWindowType": "FLOAT",
-  "defaultXPosition": 0.1,
-  "defaultYPosition": 0.1,
-  "popupType": "NORMAL",
-  "isHiddenFrame": false,
-  "isAlwaysOnTop": false,
-  "alwaysShowWindow": false,
-  "resizable": true,
-  "minimumWidth": 480,
-  "minimumHeight": 360,
-  "maximumWidth": 1920,
-  "maximumHeight": 1440
+  "content": [
+    {
+      "path": "build-panel.mjs",
+      "size": 3483,
+      "date": 134253903661654484
+    },
+    {
+      "path": "README.md",
+      "size": 3713,
+      "date": 134253904071233368
+    },
+    {
+      "path": "html_ui/InGamePanels/InGamePanelsList.json",
+      "size": 296,
+      "date": 134253902980903095
+    },
+    {
+      "path": "html_ui/InGamePanels/ATCPanel/ATCPanel.html",
+      "size": 109517,
+      "date": 134253904231923970
+    },
+    {
+      "path": "html_ui/InGamePanels/ATCPanel/icon.svg",
+      "size": 269,
+      "date": 134253903123816234
+    },
+    {
+      "path": "html_ui/InGamePanels/ATCPanel/panelInfo.json",
+      "size": 326,
+      "date": 134253881189152587
+    },
+    {
+      "path": "html_ui/InGamePanels/ATCPanel/PanelXML.xml",
+      "size": 402,
+      "date": 134253881172194235
+    }
+  ]
 }

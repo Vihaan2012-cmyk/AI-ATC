@@ -37,3 +37,26 @@ html = html.replace('<title>', '<!-- GENERATED in-sim panel — do not edit; edi
 mkdirSync(dirname(OUT), { recursive: true });
 writeFileSync(OUT, html);
 console.log(`[build-panel] generated ${OUT} from ${SRC} (${html.length} bytes)`);
+
+// Regenerate layout.json (the MSFS package file index) if MSFSLayoutGenerator.exe is available.
+// MSFS won't load the package without a current layout.json. Point it at our layout.json so it
+// re-indexes every file in msfs-panel/. Falls back with a clear note if the tool isn't found.
+try {
+  const { existsSync } = await import('node:fs');
+  const candidates = [
+    join(process.env.USERPROFILE || '', 'Downloads', 'MSFSLayoutGenerator.exe'),
+    join(process.env.USERPROFILE || '', 'Downloads', 'MSFSLayoutGenerator (1).exe'),
+  ];
+  const gen = candidates.find((p) => existsSync(p));
+  const layout = join(here, 'layout.json');
+  if (!existsSync(layout)) writeFileSync(layout, JSON.stringify({ content: [] }, null, 2));
+  if (gen) {
+    const { spawnSync } = await import('node:child_process');
+    spawnSync(gen, [layout], { stdio: 'ignore' });
+    console.log(`[build-panel] regenerated layout.json via ${gen}`);
+  } else {
+    console.log('[build-panel] NOTE: MSFSLayoutGenerator.exe not found in Downloads — run it on msfs-panel/layout.json before packaging.');
+  }
+} catch (e) {
+  console.log('[build-panel] layout regen skipped:', e.message);
+}
