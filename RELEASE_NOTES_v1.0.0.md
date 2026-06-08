@@ -1,41 +1,69 @@
 # AI ATC for MSFS — v1.0.0
 
+First stable release. Local, no-cloud AI air traffic control for MSFS 2020/2024: a deterministic
+ATC engine that owns the facts, with a local LLM (via Ollama) handling language only. Text + voice.
+
 ## Additions
 
-### New ATC procedures
-- **Diversions** — pilot-initiated and ATC-initiated diversion detection + nearest-airport routing.
-- **Runway change** — deterministic runway reassignment driven by wind.
-- **Special VFR (SVFR)** — Class D entry authorization.
-- **Formation flight** — flight-of-two clearance composer.
-- **LAHSO** — land-and-hold-short clearances with pilot accept/refuse detection.
-- **Progressive taxi** — step-by-step ground guidance.
-- **VFR pattern sequencing** — deterministic traffic-pattern position assignment.
-- **"Expect" clearances + amendments** — expect-higher after intermediate climbs, mid-flight amendments.
-- **Handback** — controller hands you back to the previous frequency ("remain this frequency").
+### Core ATC
+- **Full gate-to-gate controller stack** — Clearance Delivery → Ground → Tower → Departure → Center →
+  Approach → Tower → Ground, with monitor-vs-contact handoffs and handoff phrasing.
+- **Free-flow conversational ATC** — natural back-and-forth, compound/multi-intent requests in one call.
+- **Proactive ATC** — the controller initiates from live state instead of only reacting.
+- **Persistent flight state** — resume a session across app/brain restarts.
+- **Auto-squawk on clearance** + real SID/STAR pulled from the OFP.
+
+### ATC procedures
+- **Diversions** (pilot- and ATC-initiated) with nearest-airport routing.
+- **Approaches** — go-around / missed approach, visual approach, circle-to-land, sidestep,
+  conditional takeoff/landing clearances.
+- **Enroute** — reroutes, pop-up VFR-to-IFR, holds with EFC times, crossing restrictions,
+  pilot's-discretion, "unable" handling, top-of-descent prompt (3:1 rule).
+- **Departure release-window** composer (void times).
+- **Runway change** driven by wind; **wake-turbulence spacing** + smart runway-by-wind.
+- **Special VFR**, **formation flight** (flight-of-two), **LAHSO**, **progressive taxi**.
+- **VFR pattern sequencing** with deterministic position assignment.
+- **"Expect" clearances + amendments**; **handback** ("remain this frequency").
+- **Emergency scenarios** — engine, medical, depressurization, fuel, fire, control issues.
 
 ### Realism & language
-- **Deep-realism toggle** (off by default) for extra procedural detail.
-- **Regional controller accents** — US / UK / Euro phrasing variants in the phraseology pipeline.
-- **Workload-driven controller tone** + performance-tuned top-of-descent.
-- **Multi-intent transmissions** — split combined pilot requests in one call.
-- **Pilot shorthand expansion** and **context-aware "say again"** for partial repeats.
-- **Confidence-driven reprompt** — asks for clarification when NLU confidence is low.
-- **Phonetic-alphabet + ATC number tolerance** (niner/tree/fife, robust readback parsing).
-- **Stuck-mic / blocked-transmission** simulation and **distance-based radio quality / readability**.
+- **Controller personality + regional phraseology** (template-driven); US / UK / Euro accent variants.
+- **Deep-realism toggle** (off by default); workload-driven controller tone.
+- **Pilot-deviation (Brasher) calls** on repeated altitude busts; explicit "readback correct".
+- **Multi-intent splitting**, **pilot shorthand expansion**, context-aware **"say again"**.
+- **Confidence-driven reprompt** when NLU confidence is low.
+- **Phonetic-alphabet + ATC number tolerance** (niner/tree/fife, robust readbacks).
+- **Stuck-mic / blocked-transmission** sim; **distance-based radio quality / readability**.
 
-### Weather & navigation data
-- **Winds-aloft** cruise-altitude suggestion (`/api/winds`).
-- **TAF trend forecasting** (aviationweather.gov).
-- **ATIS loop** with recorded-playback metadata.
-- **Frequency reference card** in the dashboard.
-- **Nearest-airport** helper for diversions and flight-following.
+### Weather, traffic & nav data
+- **Living traffic** — reads sim AI/MP aircraft for traffic-aware ATC + UI readout, with granular toggles.
+- **Frequency congestion** ("stand by") and **separation** logic.
+- **Winds-aloft** cruise-altitude suggestion; **TAF** trend forecasting (aviationweather.gov).
+- **NOTAM / runway-closure** sim and **time-of-day ATIS** with loop playback.
+- **Frequency reference card**; **nearest-airport** helper for diversions / flight-following.
+- Frequencies + runways pulled live from the sim (SimConnect Facilities API).
 
-### UI & tooling
-- **In-sim MSFS 2020/2024 toolbar panel** (Community package, mirrors all tabs).
-- **Airport diagram** in the GROUND tab and dashboard — all runways with labels.
-- **Transcript replay viewer** (play / pause / step / scrub) in the dashboard.
-- **Per-aircraft profile memory** + **flight-track recording** for post-flight replay.
+### Flight School
+- **In-app ATC trainer** — lessons, drills, a phrasebook, and "decode-it" exercises to learn the radio.
+
+### UI, voice & dashboard
 - **Game overlay** with global hotkeys (see Overlay below).
+- **In-sim MSFS 2020/2024 toolbar panel** (Community package, mirrors all tabs).
+- **COM1 active/standby radio panel** with swap; **flight progress strip**; **pinned clearance banner**;
+  **clearance HUD strip** (alt/hdg/spd/squawk/next/expecting); compact + high-contrast modes.
+- **Global push-to-talk** + TX indicator + audio ducking; say-again replay, subtle radio clicks,
+  ambience toggle; **TTS off by default** (opt-in in Settings).
+- **Live local dashboard** (career-site style) — raw SimBrief OFP, airport diagram (all runways),
+  transcript replay viewer (play/pause/step/scrub), shareable flight report card (`/api/report`).
+- **Per-aircraft profile memory** + **flight-track recording** for post-flight replay.
+- **Ground services panel** (EFB redesign, auto-detected exits).
+
+### Setup, distribution & model
+- **Install wizard** — auto-installs prerequisites and pulls the ATC model; uninstaller can optionally
+  remove user data + the Ollama model.
+- **In-app "Restart brain"**, settings search, theme presets, **settings export/import** backup.
+- **Custom ATC model** training pipeline (distill + QLoRA) with VRAM-budget controls and eval/early-stopping.
+- Windows installer (electron-builder / NSIS), per-user, GitHub auto-update feed.
 
 ## Fixes
 - **Radio "earrape" removed** — deleted the squelch oscillator + band filter that made the radio
