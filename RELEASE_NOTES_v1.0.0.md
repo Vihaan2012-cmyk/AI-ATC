@@ -1,34 +1,34 @@
 # AI ATC for MSFS — v1.0.0
 
-The first stable release. A local, no-cloud AI air traffic controller for Microsoft Flight
-Simulator 2020/2024: a deterministic ATC engine that owns all the facts, with a local LLM
-(Qwen via Ollama) handling only the language. Text + voice, fully offline.
+## Fixes
+- **Radio "earrape" removed** — deleted the squelch oscillator + band filter that made the radio
+  scream; fixed runaway traffic callouts (cooldown was re-keyed every tick → now keyed per aircraft).
+- **SimBrief plan not loading** — the brain read config once at startup before `.env` had the ID;
+  it now picks up the SimBrief ID correctly (restart the brain after changing it).
+- **SimBrief ID not persisting** — the ID entered in Setup is now saved and reloaded across restarts.
+- **MSFS crash on connect (living traffic)** — string fields (ATC ID / airline / title) in the
+  traffic request destabilized the sim; traffic is now numeric-only and gated behind explicit toggles.
+- **TTS staying on** — voice now respects the off state instead of continuing to speak.
+- **HUD strip** — altitude/speed fields now render (blank when no data) instead of being hidden.
+- **"one zero thousand" parsed as 1000** — number parser now yields 10000 (bails when two bare
+  digit-words appear in a row).
+- **Phonetic normalizer too aggressive** — no longer uppercases everything / rewrites "to"→"2";
+  narrow normalization only (niner/tree/fife/fower, case preserved).
 
-## Highlights
+## In-sim toolbar panel (MSFS 2020/2024)
+- **Toolbar button now registers** — the old raw-HTML / `InGamePanelsList.json` approach never
+  worked in MSFS 2020; replaced with a real compiled `.spb` Community package built via the SDK.
+- **Whole panel shows** — was only displaying the header + tabs; added panel-fit CSS so CoherentGT
+  renders the full UI (CoherentGT collapses `position:fixed`, so it's pinned to `100vw/100vh`).
+- **Blank toolbar icon fixed** — icon is now a 64×64 SVG in MSFS's `HIGHLIGHT` format so the sim
+  recolors and shows it (a plain white/stroked SVG rendered blank).
+- **Multi-page panel** — panel mirrors all widget tabs (COMMS/PLAN/GROUND/SCHOOL/SETUP), not just COMMS.
+- **Full airport diagram** — GROUND tab draws all runways from `/api/airport`, not a single strip.
+- `deploy.ps1` reassembles the Community package from the SDK build output + html_ui.
 
-- **Free-flow ATC** — natural back-and-forth: clearances, taxi, takeoff/landing, handoffs,
-  conditional clearances, go-arounds, visual/circle-to-land approaches, reroutes, diversions,
-  holds, SVFR, formation, progressive taxi, and runway changes.
-- **Game overlay** — the desktop widget runs as a borderless, always-on-top overlay over MSFS.
-  Global hotkeys that work while the sim is focused:
+## Overlay
+- The desktop app now works as a game overlay with global hotkeys usable while MSFS is focused:
   - `Ctrl+Shift+A` — show / hide the overlay
   - `Ctrl+Shift+C` — toggle click-through (overlay stays visible, mouse passes to the sim)
   - `Ctrl+Shift+Space` — push-to-talk
-- **In-sim toolbar panel** — an MSFS 2020/2024 Community package that adds an **AI ATC** button to
-  the in-game toolbar, mirroring the full UI and connecting to the brain over `ws://localhost:8742`.
-- **Flight School** — learn ATC radio with lessons, drills, and a phrasebook.
-- **Living traffic** — AI traffic on the map with range rings and granular per-category toggles.
-- **SimBrief integration** — pull your real flight plan by SimBrief ID.
-- **Local voice** — optional Piper HD voices; everything runs on your machine.
-
-## Install
-
-- **Desktop app:** run the installer; launch from the Start menu. Set your SimBrief ID in Setup.
-- **In-sim panel (optional):** copy `msfs-panel` into your MSFS Community folder (see
-  `msfs-panel/README.md`). The desktop app must be running for the panel to connect.
-
-## Notes
-
-- Requires Ollama running locally with the ATC model pulled (the installer wizard handles this).
-- For the overlay to float over MSFS, run the sim in **Windowed** or **Borderless** display mode
-  (not exclusive Full Screen).
+- For the overlay to appear over MSFS, run the sim in **Windowed/Borderless** (not exclusive fullscreen).
