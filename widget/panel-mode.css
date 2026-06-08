@@ -1,0 +1,32 @@
+/*
+ * panel-mode.css — chrome adjustments for the undocked / torn-off single-view widget.
+ *
+ * Applied only when panel-mode.js has set data-panel="1" on <body> (i.e. the widget was
+ * opened in a secondary window with ?view=...). Normal docked use is unaffected because the
+ * selectors are all gated on body[data-panel="1"].
+ *
+ * Include with: <link rel="stylesheet" href="panel-mode.css" />
+ */
+
+/* Hide the tab bar entirely — a torn-off panel shows exactly one view, no switching. */
+body[data-panel="1"] .tabs { display: none !important; }
+
+/* The single active view should fill the panel; keep its column layout. */
+body[data-panel="1"] .views { inset: 0; }
+body[data-panel="1"] .view.active { display: flex; }
+
+/* Trim the brand status strip slightly so a small COMMS panel isn't dominated by chrome. */
+body[data-panel="1"] .bar { padding: 7px 10px; }
+
+/* In a torn-off MAP panel, let the map fill the whole panel (the PLAN head/foot are still
+   useful context, but the map should not be a tiny strip). */
+body[data-panel="1"][data-panel-view="map"] #planwrap,
+body[data-panel="1"][data-panel-view="map"] #map {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+}
+
+/* Always-visible, no-drag window controls in panel mode (set to flex by panel-mode.js too,
+   but declared here so they're styled even before JS runs). */
+body[data-panel="1"] .winctl { display: flex !important; -webkit-app-region: no-drag; }

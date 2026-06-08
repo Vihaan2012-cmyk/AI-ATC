@@ -30,6 +30,8 @@ import { buildTrafficPicture, type TrafficPicture } from '../atc/liveTraffic.js'
 import { applyPhraseology, type PhraseologyProfile } from '../atc/phraseologyProfile.js';
 import { airportCoords } from '../navdata/airports.js';
 import { computeAchievements } from '../atc/achievements.js';
+import { mergeAchievements, type LogbookEntry } from '../atc/achievementsPlus.js';
+import { CHALLENGES } from '../atc/challenges.js';
 import type { ControllerKind } from '../types.js';
 
 // Short station labels for reactive callouts (by active controller kind).
@@ -375,10 +377,28 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
     // Achievement badges based on flight statistics.
     if (req.method === 'GET' && path === '/api/achievements') {
       const dashData = dashboardData(deps, lastPos);
-      const badges = computeAchievements(dashData.stats);
+      const base = computeAchievements(dashData.stats);
+      // Merge in the extended badges (streaks, perfect-readback runs, airport bingo, night/IFR/emergency).
+      const badges = mergeAchievements(base, readLogbook() as LogbookEntry[]);
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store',
         'access-control-allow-origin': '*' });
       res.end(JSON.stringify(badges));
+      return;
+    }
+    // Current METAR for the HUD chip (?icao=XXXX; defaults to the active field).
+    if (req.method === 'GET' && path === '/api/metar') {
+      const q = (req.url ?? '').split('?')[1] ?? '';
+      const icao = (new URLSearchParams(q).get('icao')
+        || (deps.session.isArriving ? deps.fp.destination : deps.fp.origin)).toUpperCase();
+      const wx = deps.weather[icao];
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store', 'access-control-allow-origin': '*' });
+      res.end(JSON.stringify({ icao, raw: wx?.raw ?? '', parsed: wx ?? null }));
+      return;
+    }
+    // Scenario challenge catalog (playable tricky situations).
+    if (req.method === 'GET' && path === '/api/challenges') {
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store', 'access-control-allow-origin': '*' });
+      res.end(JSON.stringify(CHALLENGES));
       return;
     }
     // Frequency reference card for the active field (all freqs from navdata).

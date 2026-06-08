@@ -59,6 +59,19 @@ mkdirSync(dirname(OUT), { recursive: true });
 writeFileSync(OUT, html);
 console.log(`[build-panel] generated ${OUT} from ${SRC} (${html.length} bytes)`);
 
+// 2b) Copy the widget add-on modules the panel references (<script src="...">) into the panel dir,
+//     so they resolve in-sim. These are the v1.1 self-contained UI modules loaded after the main script.
+const ADDONS = ['metar-hud.js', 'handoff-cue.js', 'cpdlc-panel.js', 'voice-input.js', 'panel-mode.js', 'panel-mode.css'];
+for (const file of ADDONS) {
+  const from = join(repoRoot, 'widget', file);
+  try {
+    const { copyFileSync, existsSync } = await import('node:fs');
+    if (existsSync(from)) { copyFileSync(from, join(dirname(OUT), file)); }
+    else console.log(`[build-panel] NOTE: add-on ${file} not found in widget/ — skipped`);
+  } catch (e) { console.log(`[build-panel] add-on copy failed for ${file}:`, e.message); }
+}
+console.log(`[build-panel] copied ${ADDONS.length} add-on module(s) into the panel`);
+
 // Regenerate layout.json (the MSFS package file index) if MSFSLayoutGenerator.exe is available.
 // MSFS won't load the package without a current layout.json. Point it at our layout.json so it
 // re-indexes every file in msfs-panel/. Falls back with a clear note if the tool isn't found.

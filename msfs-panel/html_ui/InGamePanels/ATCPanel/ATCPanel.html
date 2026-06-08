@@ -1587,6 +1587,29 @@ renderProgress();
 renderSchool();
 maybeShowWhatsNew();
 connect();
+
+// ---- Expose host hooks for the add-on modules loaded below (they reference these globally) ----
+window.httpBase = httpBase;
+window.sendText = sendText;
+window.atcOnPtt = (EL && EL.onPtt) ? EL.onPtt : null;
+</script>
+<!-- v1.1 add-on modules: self-contained, hook the WS/DOM above. Loaded after the main script. -->
+<link rel="stylesheet" href="panel-mode.css" />
+<script src="metar-hud.js"></script>
+<script src="handoff-cue.js"></script>
+<script src="cpdlc-panel.js"></script>
+<script src="voice-input.js"></script>
+<script src="panel-mode.js"></script>
+<script>
+// Initialize voice input now that voice-input.js has loaded (push-to-talk speech-to-text).
+if (window.VoiceInput && typeof window.VoiceInput.init === 'function') {
+  window.VoiceInput.init({
+    sendText: window.sendText,
+    setInput: function (t) { var i = document.getElementById('input'); if (i) i.value = t; },
+    onPtt: window.atcOnPtt,
+    inputId: 'input',
+  });
+}
 </script>
 </body>
 </html>

@@ -1,9 +1,14 @@
 {
   "content": [
     {
+      "path": ".gitignore",
+      "size": 162,
+      "date": 134253959911292317
+    },
+    {
       "path": "build-panel.mjs",
-      "size": 4783,
-      "date": 134253948415247790
+      "size": 5610,
+      "date": 134254048139381599
     },
     {
       "path": "build.bat",
@@ -92,8 +97,38 @@
     },
     {
       "path": "html_ui/InGamePanels/ATCPanel/ATCPanel.html",
-      "size": 110358,
-      "date": 134253959567359874
+      "size": 111324,
+      "date": 134254048232796231
+    },
+    {
+      "path": "html_ui/InGamePanels/ATCPanel/cpdlc-panel.js",
+      "size": 24114,
+      "date": 134253993415822253
+    },
+    {
+      "path": "html_ui/InGamePanels/ATCPanel/handoff-cue.js",
+      "size": 12015,
+      "date": 134253991743200544
+    },
+    {
+      "path": "html_ui/InGamePanels/ATCPanel/metar-hud.js",
+      "size": 13585,
+      "date": 134253992909192120
+    },
+    {
+      "path": "html_ui/InGamePanels/ATCPanel/panel-mode.css",
+      "size": 1424,
+      "date": 134253992094829748
+    },
+    {
+      "path": "html_ui/InGamePanels/ATCPanel/panel-mode.js",
+      "size": 4083,
+      "date": 134253991977347347
+    },
+    {
+      "path": "html_ui/InGamePanels/ATCPanel/voice-input.js",
+      "size": 12054,
+      "date": 134253991049338299
     },
     {
       "path": "html_ui/Textures/Menu/toolbar/ICON_TOOLBAR_ATC_PANEL.svg",

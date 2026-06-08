@@ -33,6 +33,9 @@ import { composeExpect } from './expectations.js';
 import { nearestAirport } from '../navdata/nearest.js';
 import { AIRPORTS } from '../navdata/airports.js';
 import { splitTransmissions } from '../llm/multiIntent.js';
+import { isReadbackAssistRequest, composeReadback } from './readbackAssist.js';
+import { isCtafRequest, detectLeg, composeSelfAnnounce } from './ctaf.js';
+import { isPositionReport, isReportNextRequest, parsePositionReport } from './oceanic.js';
 
 interface Controller {
   handle(pilotText: string): Promise<Reply>;
@@ -214,6 +217,31 @@ export class ControllerSession {
       const seed = Math.abs([...this.fp.callsign].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 0));
       const route = buildProgressiveRoute(taxiways, seed, 4);
       return { from: STATION_LABELS[this.kind] ?? this.lastFrom, freqMhz: this.activeFreqMhz, text: composeProgressive(route, this.spokenCs), expecting: 'readback' };
+    }
+    // Co-pilot readback assist: "read it back for me" -> textbook-correct readback of the last instruction.
+    if (isReadbackAssistRequest(pilotText)) {
+      return {
+        from: STATION_LABELS[this.kind] ?? this.lastFrom, freqMhz: this.activeFreqMhz,
+        text: composeReadback(this.lastInstruction, { spokenCallsign: this.spokenCs }), expecting: 'none',
+      };
+    }
+    // CTAF / uncontrolled field self-announce: when there's no controlling station for the field.
+    if (isCtafRequest(pilotText)) {
+      const apt = this.arriving ? this.fp.destination : this.fp.origin;
+      const fieldName = shortenAirportName(this.nav.getAirport(apt)?.name, apt);
+      const text = composeSelfAnnounce(detectLeg(pilotText), { fieldName, callsign: this.fp.callsign });
+      return { from: 'CTAF', freqMhz: this.activeFreqMhz, text, expecting: 'none' };
+    }
+    // Oceanic / non-radar: pilot position report or "report next fix".
+    if (isPositionReport(pilotText) || isReportNextRequest(pilotText)) {
+      if (isReportNextRequest(pilotText)) {
+        return { from: STATION_LABELS[this.kind] ?? this.lastFrom, freqMhz: this.activeFreqMhz,
+          text: `${this.spokenCs}, report the next reporting fix.`, expecting: 'none' };
+      }
+      const rep = parsePositionReport(pilotText);
+      const next = rep.nextFix ? ` Report ${rep.nextFix}.` : '';
+      return { from: STATION_LABELS[this.kind] ?? this.lastFrom, freqMhz: this.activeFreqMhz,
+        text: `${this.spokenCs}, roger, position copied.${next}`, expecting: 'none' };
     }
     // "explain that" -> restate the last instruction in plain English.
     if (isExplainRequest(pilotText)) {
