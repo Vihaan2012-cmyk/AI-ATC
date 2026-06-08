@@ -16,8 +16,13 @@ where node >nul 2>nul && node build-panel.mjs
 REM 2) Compile the .spb (this is what registers the toolbar button).
 "%MSFS_SDK%\Tools\bin\fspackagetool.exe" "Build\atc-panel.xml" -nomirroring
 
-REM 3) Copy the built .spb into the package's InGamePanels folder.
-copy /Y "Build\Packages\ai-atc-ingamepanel\Build\InGamePanel_ATCPanel.spb" "InGamePanels\"
+REM 3) Copy the built .spb into the package's InGamePanels folder (exactly like the template:
+REM     fspackagetool names the .spb after the AssetGroup Name, copied as-is).
+if not exist "InGamePanels" mkdir "InGamePanels"
+copy /Y "Build\Packages\ai-atc-ingamepanel\Build\ai-atc-ingamepanel.spb" "InGamePanels\"
+
+REM 4) Refresh layout.json so MSFS indexes the new .spb.
+where node >nul 2>nul && node build-panel.mjs
 
 echo.
 echo Done. Now copy this entire msfs-panel folder into your MSFS Community folder,

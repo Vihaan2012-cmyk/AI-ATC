@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="Windows-1252"?>
 <SimBase.Document Type="InGamePanels" version="1,0">
-  <Filename>InGamePanel_ATCPanel.spb</Filename>
+  <Filename>ai-atc-ingamepanel.spb</Filename>
   <InGamePanels.InGamePanelDefinition id="PANEL_ATC_PANEL" Name="AI ATC" url="html_UI/ingamePanels/ATCPanel/ATCPanel.html" resizeDirections="Both" minWidth="33" minHeight="35" defaultWidth="40" defaultHeight="60" defaultTop="20" defaultRight="2" icon="ICON_TOOLBAR_ATC_PANEL" buttonVisible="true">
   </InGamePanels.InGamePanelDefinition>
 </SimBase.Document>
