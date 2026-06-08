@@ -23,6 +23,8 @@ import { buildFreqCard } from '../atc/freqCard.js';
 import { SCENARIOS } from '../atc/scenarios.js';
 import { pickTone } from '../atc/personality.js';
 import { suggestCruiseAltitude } from '../sim/winds.js';
+import { radioQuality } from '../atc/radioQuality.js';
+import { buildAtisLoop } from '../atc/atisLoop.js';
 import { ReactiveMonitor } from '../atc/monitor.js';
 import { buildTrafficPicture, type TrafficPicture } from '../atc/liveTraffic.js';
 import { applyPhraseology, type PhraseologyProfile } from '../atc/phraseologyProfile.js';
@@ -454,7 +456,9 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
             send(ws, { type: 'atc_tx', from: STATION_LABEL[deps.session.activeKind] ?? 'ATC', freq: deps.session.activeFreqMhz, text: standbyPhrase(spokenFlightCallsign(deps.fp)), expecting: 'none' });
           }
           const reply = await deps.session.handle(msg.text.trim());
-          send(ws, { type: 'atc_tx', from: reply.from, freq: reply.freqMhz, text: phrase(reply.text, reply.expecting), expecting: reply.expecting });
+          // ATIS replies carry a loop duration so the widget can repeat the broadcast on its freq.
+          const atisLoop = /\bATIS\b/i.test(reply.from) ? buildAtisLoop(reply.text).loopSeconds : undefined;
+          send(ws, { type: 'atc_tx', from: reply.from, freq: reply.freqMhz, text: phrase(reply.text, reply.expecting), expecting: reply.expecting, ...(atisLoop ? { atisLoopSeconds: atisLoop } : {}) });
           send(ws, { type: 'state', activeController: deps.session.activeKind });
           send(ws, { type: 'scorecard', ...deps.session.scorecard });
           autoTune(reply.freqMhz);
@@ -528,7 +532,10 @@ export function startCommsServer(port: number, deps: CommsDeps): WebSocketServer
       sim.subscribeFlightState((s) => {
         lastPos = { lat: s.latitude, lon: s.longitude, hdg: s.headingTrue,
           altFt: s.altitudeFt, gsKt: s.groundSpeedKt, onGround: s.onGround };
-        broadcast({ type: 'position', ...lastPos });
+        // Radio readability from distance to the destination station (for a HUD signal indicator).
+        const dDist = monitor.destDistance(s);
+        const rq = dDist != null ? radioQuality(dDist) : null;
+        broadcast({ type: 'position', ...lastPos, readability: rq?.readability ?? null });
         // Frequency awareness: tell the session what COM1 is tuned to.
         if (s.com1Mhz) deps.session.setCom1(s.com1Mhz);
         deps.session.setHeading(s.headingTrue); // for hold-entry guidance
