@@ -442,6 +442,8 @@
           </div>
           <div class="sect">
             <h3>Realism</h3>
+            <div class="row"><label>Difficulty</label><select id="cfgDifficulty"><option value="">Custom (use knobs below)</option><option value="casual">Casual (forgiving, hints on)</option><option value="standard">Standard</option><option value="realistic">Realistic (strict, deep realism)</option></select></div>
+            <div class="note" style="margin:-2px 0 6px;">A preset bundles strictness + deep realism + hints. Leave on Custom to set them yourself.</div>
             <div class="row"><label>Readback strictness</label><select id="cfgStrict"><option value="relaxed">Relaxed (anything accepted)</option><option value="normal">Normal (key items)</option><option value="strict">Strict (full readback)</option></select></div>
             <div class="row"><label>Ambient radio chatter</label><select id="cfgChatter"><option value="off">Off</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High (busy)</option></select></div>
             <button class="btn" id="saveRealism">Save realism</button>
@@ -1130,7 +1132,7 @@ function loadSetup(){
   }
   if(EL){ EL.getSettings().then(function(v){ s=v; fill(); }); } else { try{ s=JSON.parse(localStorage.getItem('atc.appe')||'{}'); s=Object.assign({accent:'#6f8cff',opacity:1,fontScale:1,alwaysOnTop:true},s);}catch(e){} fill(); }
   // config
-  if(EL){ EL.getConfig().then(function(c){ $('cfgSimbrief').value=c.SIMBRIEF_USERNAME||''; $('cfgSimbriefId').value=c.SIMBRIEF_USERID||''; $('cfgHoppie').value=c.HOPPIE_LOGON||''; $('cfgProvider').value=c.LLM_PROVIDER||'ollama'; $('cfgModel').value=c.LLM_MODEL||c.OLLAMA_MODEL||''; $('cfgDevice').value=c.LLM_DEVICE||'auto'; $('cfgStrict').value=c.ATC_STRICTNESS||'normal'; $('cfgChatter').value=c.ATC_CHATTER||'low'; }); }
+  if(EL){ EL.getConfig().then(function(c){ $('cfgSimbrief').value=c.SIMBRIEF_USERNAME||''; $('cfgSimbriefId').value=c.SIMBRIEF_USERID||''; $('cfgHoppie').value=c.HOPPIE_LOGON||''; $('cfgProvider').value=c.LLM_PROVIDER||'ollama'; $('cfgModel').value=c.LLM_MODEL||c.OLLAMA_MODEL||''; $('cfgDevice').value=c.LLM_DEVICE||'auto'; $('cfgStrict').value=c.ATC_STRICTNESS||'normal'; $('cfgChatter').value=c.ATC_CHATTER||'low'; if($('cfgDifficulty')) $('cfgDifficulty').value=c.DIFFICULTY||''; }); }
   renderScore(); renderLogbook();
 }
 $('saveAppe').addEventListener('click',function(){
@@ -1220,10 +1222,15 @@ function autoSaveConn(){
 }
 connAutoIds.forEach(function(id){ var el=$(id); if(el){ el.addEventListener('change', autoSaveConn); el.addEventListener('blur', autoSaveConn); } });
 $('saveRealism').addEventListener('click',function(){
-  var cfg={ ATC_STRICTNESS:$('cfgStrict').value, ATC_CHATTER:$('cfgChatter').value };
+  var cfg={ ATC_STRICTNESS:$('cfgStrict').value, ATC_CHATTER:$('cfgChatter').value, DIFFICULTY:($('cfgDifficulty')?$('cfgDifficulty').value:'') };
   if(EL){ EL.saveConfig(cfg).then(function(){ entry('sys','','','Realism saved. Restart the brain to apply.'); var t=document.querySelector('.tab[data-v="comms"]'); if(t)t.click(); }); }
   else entry('sys','','','Config editing requires the desktop app.');
 });
+// When a difficulty preset is chosen, reflect its strictness in the strictness dropdown for clarity.
+if($('cfgDifficulty')){ $('cfgDifficulty').addEventListener('change',function(){
+  var map={casual:'relaxed',standard:'normal',realistic:'strict'};
+  if(this.value && map[this.value] && $('cfgStrict')) $('cfgStrict').value=map[this.value];
+}); }
 // live preview while sliding
 $('setAccent').addEventListener('input',function(){ document.documentElement.style.setProperty('--accent',$('setAccent').value); });
 $('setFont').addEventListener('input',function(){ document.documentElement.style.setProperty('--fs',(14*parseFloat($('setFont').value))+'px'); });

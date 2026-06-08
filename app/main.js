@@ -7,6 +7,7 @@ const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const { Piper } = require('./piper');
+const panelWindows = require('./windows');
 
 let piper = null;
 function getPiper() { if (!piper) piper = new Piper(app.getPath('userData')); return piper; }
@@ -156,7 +157,7 @@ if (process.platform === 'win32') app.setAppUserModelId('com.msfsaiatc.app');
 
 app.whenReady().then(createWindow).then(registerPtt).then(registerOverlayKeys);
 app.on('window-all-closed', () => app.quit());
-app.on('before-quit', stopBrain);
+app.on('before-quit', () => { stopBrain(); try { panelWindows.closeAllPanels(); } catch {} });
 app.on('will-quit', () => { try { globalShortcut.unregisterAll(); } catch {} });
 app.on('activate', () => { if (!win) createWindow(); });
 
@@ -204,9 +205,15 @@ ipcMain.handle('win:drawer', (_e, open) => {
   return drawerOpen;
 });
 
+// Multi-monitor: tear off a single view (comms/map) into its own always-on-top window.
+ipcMain.handle('panel:open', (_e, view) =>
+  panelWindows.openPanel(view, { widgetPath, settings: getSettings(), ownerWindow: win }));
+ipcMain.handle('panel:close', (_e, view) => panelWindows.closePanel(view));
+ipcMain.handle('panel:list', () => panelWindows.openPanelViews());
+
 // settings + config
 ipcMain.handle('settings:get', () => getSettings());
-ipcMain.handle('settings:save', (_e, s) => { const m = { ...getSettings(), ...s }; writeJson(settingsFile(), m); applyWindow(m); return m; });
+ipcMain.handle('settings:save', (_e, s) => { const m = { ...getSettings(), ...s }; writeJson(settingsFile(), m); applyWindow(m); panelWindows.applySettingsToPanels(m); return m; });
 ipcMain.handle('config:get', () => {
   const env = readEnv();
   return {
@@ -215,6 +222,7 @@ ipcMain.handle('config:get', () => {
     LLM_MODEL: env.LLM_MODEL || '', OLLAMA_MODEL: env.OLLAMA_MODEL || 'myaimodels/atc-nlu',
     LLM_DEVICE: env.LLM_DEVICE || 'auto',
     ATC_STRICTNESS: env.ATC_STRICTNESS || 'normal', ATC_CHATTER: env.ATC_CHATTER || 'low',
+    DIFFICULTY: env.DIFFICULTY || '',
   };
 });
 ipcMain.handle('config:save', (_e, cfg) => writeEnv(cfg));

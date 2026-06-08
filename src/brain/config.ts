@@ -1,4 +1,6 @@
 // Loads .env (if present) and exposes typed config. No dependency: Node's built-in loader.
+import { resolveDifficulty, type DifficultyPreset } from './atc/difficulty.js';
+
 try {
   process.loadEnvFile();
 } catch {
@@ -9,6 +11,14 @@ function splitList(v: string | undefined, fallback: string[]): string[] {
   const parts = (v ?? '').split(',').map((s) => s.trim()).filter(Boolean);
   return parts.length > 0 ? parts : fallback;
 }
+
+// Difficulty preset (casual | standard | realistic) bundles strictness + deep-realism + hints.
+// When DIFFICULTY is set, it provides the DEFAULTS for those knobs; an explicit ATC_STRICTNESS /
+// DEEP_REALISM env var still overrides the preset. Off (unset) -> the historical per-knob defaults.
+const _difficultyEnv = (process.env.DIFFICULTY ?? '').toLowerCase();
+const _difficulty = (['casual', 'standard', 'realistic'] as const).includes(_difficultyEnv as DifficultyPreset)
+  ? resolveDifficulty(_difficultyEnv as DifficultyPreset)
+  : null;
 
 export const config = {
   // --- LLM provider (local/downloadable backends only) ---
@@ -72,7 +82,9 @@ export const config = {
    * occasional "remain this frequency" handbacks, "expect" clearances, mid-flight clearance
    * amendments, blocked/stuck-mic, and multi-intent splitting. Set DEEP_REALISM=1 to opt in.
    */
-  deepRealism: process.env.DEEP_REALISM === '1' || process.env.DEEP_REALISM === 'true',
+  deepRealism: process.env.DEEP_REALISM != null
+    ? (process.env.DEEP_REALISM === '1' || process.env.DEEP_REALISM === 'true')
+    : (_difficulty?.deepRealism ?? false),
 
   /**
    * Auto-tune COM1 over SimConnect when a controller hands you off.
@@ -88,7 +100,7 @@ export const config = {
    *  'normal'  = safety-critical items (altitude/heading/squawk) must be read back  [default]
    *  'strict'  = every assigned item must be read back
    */
-  strictness: (process.env.ATC_STRICTNESS ?? 'normal') as 'relaxed' | 'normal' | 'strict',
+  strictness: (process.env.ATC_STRICTNESS ?? _difficulty?.strictness ?? 'normal') as 'relaxed' | 'normal' | 'strict',
 
   /** Ambient AI radio chatter on frequency: 'off' | 'low' | 'medium' | 'high'. */
   chatter: (process.env.ATC_CHATTER ?? 'low') as 'off' | 'low' | 'medium' | 'high',

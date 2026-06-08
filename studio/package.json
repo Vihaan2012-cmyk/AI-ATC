@@ -1,0 +1,38 @@
+{
+  "name": "distill-studio",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Distill Studio — train a small specialised LLM from a text box, using your local Ollama models. Generic LLM distillation: teacher generates data, QLoRA fine-tunes a student, Ollama runs it.",
+  "main": "main.js",
+  "author": "Distill Studio",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:dir": "electron-builder --dir"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.distillstudio.app",
+    "productName": "Distill Studio",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "engine/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    }
+  }
+}
