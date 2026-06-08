@@ -843,6 +843,7 @@ function renderGroundAircraft(){
   var ac = fpinfo && (fpinfo.aircraftName || fpinfo.aircraft);
   var icao = fpinfo && fpinfo.aircraft;
   if($('gAircraft')) $('gAircraft').textContent = ac ? String(ac).toUpperCase() : '—';
+  rememberAircraftProfile(icao);
   var n = exitCountFor(icao);
   var wrap=$('gDoors'); if(!wrap) return;
   wrap.innerHTML='';
@@ -970,7 +971,7 @@ function connect(){
     else if(m.type==='clearance'){ hudApply(m.assigned||{}); if(m.assigned&&m.assigned.nextFreqMhz!=null) comSetStandby(m.assigned.nextFreqMhz); }
     else if(m.type==='squawk'){ hudSet('hud-sq', m.code, 'set'); }
     else if(m.type==='radio'){ var rf=Number(m.com1).toFixed(3); $('freq').textContent=rf; if(m.active){ comSetActive(m.com1); } else { comSetStandby(m.com1); } entry('sys','','', (m.active?'COM1 tuned to ':'COM1 standby set to ')+rf); }
-    else if(m.type==='position'){ pos=m; updatePlanFoot(); updateAircraft(); hudLive(m); if(m.com1Mhz) comSetActive(m.com1Mhz); if(m.readability!=null) hudSig(m.readability); }
+    else if(m.type==='position'){ pos=m; updatePlanFoot(); updateAircraft(); hudLive(m); if(m.com1Mhz) comSetActive(m.com1Mhz); if(m.readability!=null) hudSig(m.readability); recordTrack(m); }
     else if(m.type==='traffic'){ updateTraffic(m); updateTrafficMap(m); }
     else if(m.type==='scorecard'){ lastScore=m; renderScore(); }
     else if(m.type==='chatter'){ entry('chatter', m.from, '', m.text); }
@@ -1311,7 +1312,7 @@ function renderLogbook(){
 if(EL){
   $('logbookSect').style.display='block';
   $('logSave').addEventListener('click',function(){
-    var base = { origin: flight&&flight.origin, destination: flight&&flight.destination, callsign: flight&&flight.callsign, transcript: transcriptText() };
+    var base = { origin: flight&&flight.origin, destination: flight&&flight.destination, callsign: flight&&flight.callsign, transcript: transcriptText(), track: flightTrack.slice() };
     if(fpinfo){ base.aircraft = fpinfo.aircraftName||fpinfo.aircraft; base.route = fpinfo.route; base.cruiseAltitudeFt = fpinfo.cruise; base.flightRules = fpinfo.rules;
       base.alternate = fpinfo.alternate; base.initialAlt = fpinfo.initialAlt;
       base.ofp = fpinfo.ofp; base.sections = fpinfo.sections; base.weights = fpinfo.weights; base.rawOfp = fpinfo.rawOfp; }
@@ -1474,6 +1475,29 @@ function flashCue(text){
   t.textContent='⤴ '+String(text||'').replace(/^[^,]+,\s*/,''); b.style.display='flex';
   b.style.transition='background .3s'; b.style.background='#1d3a2c';
   setTimeout(function(){ b.style.background=''; }, 1200);
+}
+// Per-aircraft profile memory: remember callsign/telephony/voice/realism for each aircraft type,
+// and note when we recognize a type from a prior flight. Stored via the Electron profiles IPC.
+// Flight track recording for replay: downsample to ~1 frame / 4s, cap length.
+var flightTrack=[], _lastTrackT=0;
+function recordTrack(m){
+  if(m.lat==null||m.lon==null) return;
+  var now=Date.now();
+  if(now-_lastTrackT < 4000) return;
+  _lastTrackT=now;
+  flightTrack.push({ t: now, lat: m.lat, lon: m.lon, altFt: Math.round(m.altFt||0), hdg: Math.round(m.hdg||0) });
+  if(flightTrack.length > 1200) flightTrack.shift();
+}
+var _profileSavedFor=null;
+function rememberAircraftProfile(icao){
+  if(!icao || !(EL&&EL.getProfiles&&EL.saveProfile) || _profileSavedFor===icao) return;
+  _profileSavedFor=icao;
+  EL.getProfiles().then(function(store){
+    var existing=store && store.profiles && store.profiles[icao];
+    if(existing && existing.callsign){ entry('sys','','', 'Welcome back — remembered profile for '+icao+' ('+existing.callsign+').'); }
+    // Save/refresh the current flight's identity for this type.
+    EL.saveProfile({ aircraftIcao: icao, callsign: flight&&flight.callsign, voice: voiceCfg.piper?'piper':'system', deepRealism: !!voiceCfg.deepRealism });
+  }).catch(function(){});
 }
 // Taxi route ribbon: parse taxiway tokens + runway from a taxi/progressive clearance and render
 // a visual turn-by-turn chain in the GROUND tab.
