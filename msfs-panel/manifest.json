@@ -1,0 +1,13 @@
+{
+  "format_version": 1,
+  "title": "MSFS ATC Panel",
+  "description": "Real-time Air Traffic Control panel for Microsoft Flight Simulator, powered by local AI brain",
+  "creator": "MSFS ATC Team",
+  "package": {
+    "version": "1.0.0",
+    "minimum_game_version": "1.23.12",
+    "release_notes": "Initial release. Connects to the Air Traffic Control desktop app for real-time ATC simulation."
+  },
+  "content_type": "IN-GAME-PANELS",
+  "total_package_size": 256000
+}

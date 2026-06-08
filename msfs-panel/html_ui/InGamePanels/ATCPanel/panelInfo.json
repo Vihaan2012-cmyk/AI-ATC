@@ -1,0 +1,14 @@
+{
+  "ident": "ATC_PANEL",
+  "title": "ATC Panel",
+  "description": "Real-time Air Traffic Control panel powered by local AI brain",
+  "category": "EFB",
+  "width": 1024,
+  "height": 720,
+  "resizable": true,
+  "minimumWidth": 480,
+  "minimumHeight": 360,
+  "maximumWidth": 1920,
+  "maximumHeight": 1440,
+  "updaterate": 100
+}

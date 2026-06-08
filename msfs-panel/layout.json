@@ -1,0 +1,20 @@
+{
+  "uuid": "ATC-PANEL-MSFS-2020",
+  "title": "ATC Panel",
+  "content_type": "IN-GAME-PANELS",
+  "category": "EFB",
+  "width": 1024,
+  "height": 720,
+  "defaultWindowType": "FLOAT",
+  "defaultXPosition": 0.1,
+  "defaultYPosition": 0.1,
+  "popupType": "NORMAL",
+  "isHiddenFrame": false,
+  "isAlwaysOnTop": false,
+  "alwaysShowWindow": false,
+  "resizable": true,
+  "minimumWidth": 480,
+  "minimumHeight": 360,
+  "maximumWidth": 1920,
+  "maximumHeight": 1440
+}

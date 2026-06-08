@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ATC Panel</title>
+<style>
+  :root {
+    --accent: #6f8cff;
+    --g1: #2fb6ff;
+    --g2: #9b5cff;
+    --fs: 13px;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font: var(--fs)/1.5 'Segoe UI', 'Inter', system-ui, sans-serif;
+    color: #d8e2ee;
+    background: #0c1118;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .mono { font-family: 'Cascadia Mono', 'Consolas', ui-monospace, monospace; }
+  .accentbar { height: 3px; background: linear-gradient(90deg, var(--g1), var(--g2)); }
+
+  /* Title bar */
+  .bar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: #10171f;
+    border-bottom: 1px solid #1d2735;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 700;
+    color: #eaf2fb;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+  }
+  .brand svg {
+    width: 16px;
+    height: 16px;
+  }
+  .grow { flex: 1; }
+  .stat {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: #ff5f73;
+  }
+  .stat .led {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 6px currentColor;
+  }
+  .stat.on { color: var(--accent); }
+
+  /* Radio info strip */
+  .radio {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: #0e1722;
+    border-bottom: 1px solid #182433;
+  }
+  .radio .cs { font-weight: 700; color: #eaf2fb; letter-spacing: 0.3px; }
+  .radio .rt { color: #6f8197; font-size: 11px; }
+  .radio .stn { color: var(--accent); font-weight: 700; font-size: 10px; letter-spacing: 0.6px; text-transform: uppercase; }
+  .radio .freq { margin-left: auto; font-size: 15px; font-weight: 700; color: #74e6c2; letter-spacing: 0.8px; }
+
+  /* HUD (clearance readout) */
+  .hud {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 1px;
+    padding: 6px 10px;
+    background: #0a121b;
+    border-bottom: 1px solid #182433;
+    overflow-x: auto;
+  }
+  .hudc {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 5px 9px;
+    background: #0e1722;
+    flex: 0 0 auto;
+  }
+  .hud .hk { font: 700 7.5px ui-monospace, Consolas, monospace; letter-spacing: 0.8px; color: #5f7488; }
+  .hud .hv { font: 700 11px ui-monospace, Consolas, monospace; color: #cfe0f2; letter-spacing: 0.3px; }
+  .hud .hv.set { color: #74e6c2; }
+  .hud .hv.warn { color: #e0a14a; }
+
+  /* Clearance banner */
+  .clrbanner {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 5px 10px;
+    background: #10261d;
+    border-bottom: 1px solid #1d3a2c;
+  }
+  .clrbanner .clrlabel { font: 700 7.5px ui-monospace, Consolas, monospace; letter-spacing: 0.8px; color: #5a8f76; }
+  .clrbanner .clrtext { font: 600 11px ui-monospace, Consolas, monospace; color: #aef0d0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Log area */
+  #log {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  #log::-webkit-scrollbar { width: 6px; }
+  #log::-webkit-scrollbar-thumb { background: #1f2c3a; border-radius: 6px; }
+
+  .entry {
+    border-left: 2px solid #2a3b4d;
+    padding: 2px 0 2px 9px;
+    font-size: 12px;
+  }
+  .entry.atc { border-left-color: var(--accent); }
+  .entry.you { border-left-color: #e0a14a; }
+  .entry.sys { border-left-color: transparent; text-align: center; color: #6f8197; font-size: 11px; }
+  .entry.chatter { border-left-color: #34465a; opacity: 0.6; }
+  .entry.chatter .tag { color: #7d93a8; }
+  .entry.chatter .ebody { color: #8ea3b8; font-style: italic; }
+
+  .emeta { display: flex; align-items: baseline; gap: 6px; margin-bottom: 1px; }
+  .emeta .tag { font-size: 9px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; }
+  .entry.atc .tag { color: var(--accent); }
+  .entry.you .tag { color: #e0a14a; }
+  .emeta .et { margin-left: auto; font-size: 9px; color: #56697d; }
+  .ebody { color: #dbe6f1; }
+
+  /* Quick action buttons */
+  .quick {
+    flex: 0 0 auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 10px 0;
+  }
+  .q {
+    font-size: 11px;
+    font-weight: 600;
+    color: #cfe;
+    background: #122130;
+    border: 1px solid #21384a;
+    border-radius: 6px;
+    padding: 6px 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .q:hover { border-color: var(--accent); color: #eafff8; }
+  .q:active { background: #16273a; }
+
+  /* Composer (input area) */
+  .composer {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 7px;
+    padding: 8px 10px 10px;
+  }
+  #input {
+    flex: 1;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid #243747;
+    background: #0f1925;
+    color: #fff;
+    font: inherit;
+    outline: none;
+  }
+  #input:focus { border-color: var(--accent); }
+  #input::placeholder { color: #5f7388; }
+  #send {
+    min-width: 44px;
+    border: 0;
+    border-radius: 6px;
+    cursor: pointer;
+    background: linear-gradient(135deg, var(--g1), var(--g2));
+    color: #fff;
+    font-weight: 700;
+    font-size: 11px;
+    transition: all 0.15s;
+  }
+  #send:hover:not([disabled]) { opacity: 0.9; }
+  #send[disabled] { opacity: 0.4; cursor: default; }
+
+  /* Offline message */
+  .offline-banner {
+    flex: 0 0 auto;
+    padding: 10px 12px;
+    background: #2a1414;
+    border-bottom: 1px solid #5a2a2a;
+    color: #ff9a9a;
+    font-size: 12px;
+    text-align: center;
+    font-weight: 600;
+  }
+  .offline-banner.hidden { display: none; }
+
+  #empty {
+    text-align: center;
+    color: #6f8197;
+    font-size: 12px;
+    padding: 20px 0;
+  }
+</style>
+</head>
+<body>
+<div class="accentbar"></div>
+<div class="bar">
+  <span class="brand">
+    <svg viewBox="0 0 24 24" fill="none"><path d="M11 3h2v6l5 11h-4l-1-3h-2l-1 3H5l5-11z" fill="#dfeaf5"/><path d="M6 4q-3 3 0 8M18 4q3 3 0 8" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/></svg>
+    <code style="letter-spacing: 0.2px;">ATC PANEL</code>
+  </span>
+  <span class="grow"></span>
+  <span class="stat" id="stat"><span class="led"></span><span id="statTxt">offline</span></span>
+</div>
+<div class="offline-banner hidden" id="offlineBanner">Start the desktop Air Traffic Control app to use this panel.</div>
+<div class="radio">
+  <span class="cs" id="cs">&mdash;</span>
+  <span class="rt mono" id="rt"></span>
+  <span class="stn" id="stn"></span>
+  <span class="freq mono" id="freq"></span>
+</div>
+<div class="hud" id="hud" style="display: none;">
+  <div class="hudc"><span class="hk">ALT</span><span class="hv" id="hud-alt">—</span></div>
+  <div class="hudc"><span class="hk">HDG</span><span class="hv" id="hud-hdg">—</span></div>
+  <div class="hudc"><span class="hk">SPD</span><span class="hv" id="hud-spd">—</span></div>
+  <div class="hudc"><span class="hk">SQ</span><span class="hv" id="hud-sq">—</span></div>
+  <div class="hudc"><span class="hk">NEXT</span><span class="hv" id="hud-next">—</span></div>
+</div>
+<div class="clrbanner" id="clrbanner" style="display: none;"><span class="clrlabel">CLEARANCE</span><span class="clrtext" id="clrtext">—</span></div>
+<div id="log"><div class="entry sys" id="empty">Waiting for connection...</div></div>
+<div class="quick" id="quick"></div>
+<div class="composer">
+  <input id="input" placeholder="Type to ATC..." autocomplete="off" />
+  <button id="send" disabled>Send</button>
+</div>
+
+<script>
+var WS_URL = 'ws://localhost:8742';
+var ws = null, flight = null, pos = null;
+var curKind = 'delivery';
+var hudAssigned = {};
+var logEl = document.getElementById('log');
+var STATION = { delivery: 'Delivery', ground: 'Ground', tower: 'Tower', departure: 'Departure', center: 'Center', approach: 'Approach' };
+
+function $(id) { return document.getElementById(id); }
+function esc(s) { return String(s).replace(/[&<>]/g, function(c) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;'}[c]; }); }
+function pad2(x) { return ('0' + x).slice(-2); }
+function nowHMS() { var n = new Date(); return pad2(n.getHours()) + ':' + pad2(n.getMinutes()) + ':' + pad2(n.getSeconds()); }
+
+function setStatus(s) {
+  var stat = $('stat');
+  stat.className = 'stat' + (s === 'on' ? ' on' : '');
+  $('statTxt').textContent = s === 'on' ? 'online' : 'offline';
+  $('offlineBanner').classList.toggle('hidden', s === 'on');
+  $('send').disabled = s !== 'on';
+  $('input').disabled = s !== 'on';
+}
+
+function hideEmpty() {
+  var e = $('empty');
+  if (e) e.parentNode.removeChild(e);
+}
+
+function entry(kind, tag, freq, text) {
+  hideEmpty();
+  var d = document.createElement('div');
+  d.className = 'entry ' + kind;
+  if (kind === 'sys') {
+    d.innerHTML = esc(text);
+  } else {
+    var meta = '<span class="tag">' + esc(tag) + '</span>' + (freq ? '<span class="ef mono" style="color:#7d93a8;">' + esc(freq) + '</span>' : '') + '<span class="et mono">' + nowHMS() + '</span>';
+    d.innerHTML = '<div class="emeta">' + meta + '</div><div class="ebody">' + esc(text) + '</div>';
+  }
+  logEl.appendChild(d);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function typeEntry(tag, freq, text) {
+  hideEmpty();
+  var d = document.createElement('div');
+  d.className = 'entry atc';
+  var meta = '<span class="tag">' + esc(tag) + '</span>' + (freq ? '<span class="ef mono" style="color:#7d93a8;">' + esc(freq) + '</span>' : '') + '<span class="et mono">' + nowHMS() + '</span>';
+  var body = document.createElement('div');
+  body.className = 'ebody';
+  d.innerHTML = '<div class="emeta">' + meta + '</div>';
+  d.appendChild(body);
+  logEl.appendChild(d);
+  logEl.scrollTop = logEl.scrollHeight;
+  body.textContent = text;
+}
+
+function setQuick(items) {
+  var c = $('quick');
+  c.innerHTML = '';
+  items.forEach(function(it) {
+    var b = document.createElement('button');
+    b.className = 'q';
+    b.textContent = it.label;
+    b.addEventListener('click', function() { sendText(it.send); });
+    c.appendChild(b);
+  });
+}
+
+function defaultQuick() {
+  var dest = (flight && flight.destination) ? flight.destination : 'destination';
+  setQuick([
+    { label: 'Get ATIS', send: 'Request ATIS.' },
+    { label: 'Request clearance', send: 'Delivery, request IFR clearance to ' + dest + ', information Alpha.' },
+    { label: 'Pushback', send: 'Ground, request pushback.' },
+    { label: 'Taxi', send: 'Ground, request taxi.' },
+    { label: 'Ready', send: 'Tower, holding short, ready for departure.' },
+    { label: 'Traffic', send: 'Say traffic.' }
+  ]);
+}
+
+function sendText(text) {
+  var t = (typeof text === 'string' ? text : $('input').value).replace(/^\s+|\s+$/g, '');
+  if (!t || !ws || ws.readyState !== 1) return;
+  entry('you', 'You', '', t);
+  ws.send(JSON.stringify({ type: 'pilot_tx', text: t }));
+  $('input').value = '';
+}
+
+$('send').addEventListener('click', function() { sendText(); });
+$('input').addEventListener('keydown', function(e) { if (e.key === 'Enter' || e.keyCode === 13) sendText(); });
+
+function flText(ft) { if (ft == null) return null; return ft >= 18000 ? ('FL' + Math.round(ft / 100)) : (Math.round(ft).toLocaleString() + 'ft'); }
+function hudSet(id, val, cls) {
+  var e = $(id);
+  if (!e) return;
+  e.textContent = (val == null || val === '') ? '—' : val;
+  e.className = 'hv' + (val != null && val !== '' && cls ? (' ' + cls) : '');
+}
+function hudShow() { if ($('hud')) $('hud').style.display = 'flex'; }
+
+function hudApply(a) {
+  hudShow();
+  if (a.altitudeFt != null) { hudSet('hud-alt', flText(a.altitudeFt), 'set'); hudAssigned.alt = true; }
+  if (a.headingDeg != null) { hudSet('hud-hdg', String(a.headingDeg).padStart(3, '0') + '°', 'set'); hudAssigned.hdg = true; }
+  if (a.speedKt != null) { hudSet('hud-spd', a.speedKt + 'kt', 'set'); hudAssigned.spd = true; }
+  if (a.squawk) hudSet('hud-sq', a.squawk, 'set');
+  if (a.nextFreqMhz != null) hudSet('hud-next', Number(a.nextFreqMhz).toFixed(3) + (a.nextStation ? (' ' + a.nextStation) : ''), 'set');
+}
+
+function hudLive(p) {
+  if (!p) return;
+  hudShow();
+  if (!hudAssigned.alt && p.altFt != null) hudSet('hud-alt', Math.round(p.altFt).toLocaleString() + ' ft');
+  if (!hudAssigned.hdg && p.hdg != null) hudSet('hud-hdg', String(Math.round(p.hdg) % 360).padStart(3, '0') + '°');
+  if (!hudAssigned.spd && p.gsKt != null) hudSet('hud-spd', Math.round(p.gsKt) + ' kt');
+}
+
+function connect() {
+  setStatus('connecting');
+  try {
+    ws = new WebSocket(WS_URL);
+    ws.onopen = function() { setStatus('on'); entry('sys', '', '', 'Connected to ATC brain.'); };
+    ws.onclose = function() { setStatus('off'); setTimeout(connect, 2000); };
+    ws.onerror = function() { setStatus('off'); };
+    ws.onmessage = function(ev) {
+      var m;
+      try { m = JSON.parse(ev.data); } catch (e) { return; }
+      if (m.type === 'hello') {
+        flight = m;
+        $('cs').textContent = m.callsign;
+        $('rt').textContent = m.origin + ' ▸ ' + m.destination;
+        defaultQuick();
+      } else if (m.type === 'atc_tx') {
+        var f = m.freq ? Number(m.freq).toFixed(3) : '';
+        typeEntry(m.from, f, m.text);
+        if (m.freq) $('freq').textContent = Number(m.freq).toFixed(3);
+        if (m.expecting === 'readback') setClearanceBanner(m.text);
+      } else if (m.type === 'state') {
+        $('stn').textContent = STATION[m.activeController] || '';
+        curKind = m.activeController || curKind;
+      } else if (m.type === 'clearance') {
+        hudApply(m.assigned || {});
+      } else if (m.type === 'squawk') {
+        hudSet('hud-sq', m.code, 'set');
+      } else if (m.type === 'position') {
+        pos = m;
+        hudLive(m);
+      } else if (m.type === 'chatter') {
+        entry('chatter', m.from, '', m.text);
+      } else if (m.type === 'error') {
+        entry('sys', '', '', 'error: ' + m.error);
+      }
+    };
+  } catch (e) {
+    setStatus('off');
+    setTimeout(connect, 2000);
+  }
+}
+
+function setClearanceBanner(text) {
+  var b = $('clrbanner'), t = $('clrtext');
+  if (!b || !t) return;
+  t.textContent = String(text || '').replace(/^[^,]+,\s*/, '');
+  b.style.display = 'flex';
+}
+
+connect();
+</script>
+</body>
+</html>
