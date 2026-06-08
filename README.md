@@ -21,6 +21,12 @@ ATC across a full gate-to-gate flight. Everything runs on your machine — no cl
   visited. **Auto-tune** sets your COM radio on handoff.
 - **SimBrief** flight plans, live **weather/ATIS**, and **Hoppie CPDLC** datalink.
 - **Voice**: system TTS or downloadable **Piper HD** voices cast per controller; **push-to-talk** speech input.
+- **Game overlay**: the desktop app runs borderless + always-on-top over MSFS, with global hotkeys that
+  work while the sim is focused — `Ctrl+Shift+A` show/hide, `Ctrl+Shift+C` click-through,
+  `Ctrl+Shift+Space` push-to-talk. (Run MSFS in Windowed/Borderless, not exclusive fullscreen.)
+- **In-sim toolbar panel**: an optional MSFS 2020/2024 Community package adds an **AI ATC** button to the
+  in-game toolbar, mirroring the full UI (see [`msfs-panel/README.md`](msfs-panel/README.md)).
+- **Flight School**: an in-app ATC radio trainer — lessons, drills, a phrasebook, and decode-it exercises.
 - **Local AI, your choice**: Ollama, or any OpenAI-compatible local server (LM Studio, llama.cpp, Jan,
   KoboldCpp, vLLM, GPT4All…) — plus an optional **custom ATC model** you can train yourself (see below).
 - Persistent **logbook**, ambient radio chatter, and realism/strictness settings.
@@ -68,6 +74,14 @@ Start with `"Delivery, <callsign>, request IFR clearance to <dest>, information 
 clearance (include the squawk), then talk to each controller as you're handed off. The app tracks state,
 validates readbacks, and uses your sim's real frequencies and runways.
 
+### Optional: in-sim toolbar panel
+
+To control ATC from inside the cockpit, install the MSFS Community package in
+[`msfs-panel/`](msfs-panel/) — it adds an **AI ATC** toolbar button that mirrors the desktop UI and
+connects to the running app over `ws://localhost:8742`. MSFS 2020 needs the panel compiled to an `.spb`
+via the SDK (Developer Mode → Project Editor → Build All); see [`msfs-panel/README.md`](msfs-panel/README.md)
+for the full steps. The desktop app must be running for the panel to connect.
+
 ## Flight dashboard
 
 A local, career-style **flight dashboard** is served by the brain at
@@ -112,7 +126,9 @@ npm run server          # the brain (SimConnect + AI + comms; serves the widget 
 cd app && npm start     # the desktop app
 ```
 
-Package an installer with `cd app && npm run dist` (requires an elevated shell on Windows).
+Package an installer with `cd app && npm run dist`. The build is a per-user (not per-machine) NSIS
+installer and is **unsigned**, so it needs no admin rights to build or install — Windows just shows a
+SmartScreen warning on first run (click **More info → Run anyway**).
 
 ## License
 
