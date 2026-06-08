@@ -1,5 +1,42 @@
 # AI ATC for MSFS — v1.0.0
 
+## Additions
+
+### New ATC procedures
+- **Diversions** — pilot-initiated and ATC-initiated diversion detection + nearest-airport routing.
+- **Runway change** — deterministic runway reassignment driven by wind.
+- **Special VFR (SVFR)** — Class D entry authorization.
+- **Formation flight** — flight-of-two clearance composer.
+- **LAHSO** — land-and-hold-short clearances with pilot accept/refuse detection.
+- **Progressive taxi** — step-by-step ground guidance.
+- **VFR pattern sequencing** — deterministic traffic-pattern position assignment.
+- **"Expect" clearances + amendments** — expect-higher after intermediate climbs, mid-flight amendments.
+- **Handback** — controller hands you back to the previous frequency ("remain this frequency").
+
+### Realism & language
+- **Deep-realism toggle** (off by default) for extra procedural detail.
+- **Regional controller accents** — US / UK / Euro phrasing variants in the phraseology pipeline.
+- **Workload-driven controller tone** + performance-tuned top-of-descent.
+- **Multi-intent transmissions** — split combined pilot requests in one call.
+- **Pilot shorthand expansion** and **context-aware "say again"** for partial repeats.
+- **Confidence-driven reprompt** — asks for clarification when NLU confidence is low.
+- **Phonetic-alphabet + ATC number tolerance** (niner/tree/fife, robust readback parsing).
+- **Stuck-mic / blocked-transmission** simulation and **distance-based radio quality / readability**.
+
+### Weather & navigation data
+- **Winds-aloft** cruise-altitude suggestion (`/api/winds`).
+- **TAF trend forecasting** (aviationweather.gov).
+- **ATIS loop** with recorded-playback metadata.
+- **Frequency reference card** in the dashboard.
+- **Nearest-airport** helper for diversions and flight-following.
+
+### UI & tooling
+- **In-sim MSFS 2020/2024 toolbar panel** (Community package, mirrors all tabs).
+- **Airport diagram** in the GROUND tab and dashboard — all runways with labels.
+- **Transcript replay viewer** (play / pause / step / scrub) in the dashboard.
+- **Per-aircraft profile memory** + **flight-track recording** for post-flight replay.
+- **Game overlay** with global hotkeys (see Overlay below).
+
 ## Fixes
 - **Radio "earrape" removed** — deleted the squelch oscillator + band filter that made the radio
   scream; fixed runaway traffic callouts (cooldown was re-keyed every tick → now keyed per aircraft).
