@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld('atcWin', {
   clearLogbook: () => ipcRenderer.invoke('logbook:clear'),
   openDashboard: () => ipcRenderer.invoke('open:dashboard'),
   onPtt: (cb) => ipcRenderer.on('ptt:toggle', () => cb()),
+  onClickThrough: (cb) => ipcRenderer.on('overlay:clickthrough', (_e, on) => cb(on)),
+  toggleClickThrough: () => ipcRenderer.invoke('overlay:toggleClickThrough'),
   restartBrain: () => ipcRenderer.invoke('brain:restart'),
   exportConfig: () => ipcRenderer.invoke('config:export'),
   importConfig: (bundle) => ipcRenderer.invoke('config:import', bundle),

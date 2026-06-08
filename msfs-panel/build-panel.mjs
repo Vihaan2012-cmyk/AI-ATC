@@ -34,6 +34,27 @@ html = html.replace(
 // 2) Tag the document so it's identifiable as the in-sim panel build (and lets CSS tweak if needed).
 html = html.replace('<title>', '<!-- GENERATED in-sim panel — do not edit; edit widget/atc-widget.html + rerun build-panel.mjs -->\n<title>ATC Panel — ');
 
+// 3) Panel-fit CSS. In MSFS CoherentGT the panel iframe does NOT give the body the full panel
+//    height the way a browser does, so the widget's `.shell{position:fixed;inset:0}` collapses and
+//    everything below the tab bar is clipped (only header + tabs show). Force the root chain to the
+//    real panel viewport with vw/vh units and make .shell use the panel size explicitly. Injected
+//    last so it wins the cascade. Also kill the rounded border/radius (panel already has a frame).
+const PANEL_FIT_CSS = `
+<style id="panel-fit">
+  html, body { height: 100vh !important; width: 100vw !important; overflow: hidden !important; }
+  .shell {
+    position: absolute !important; top: 0 !important; left: 0 !important;
+    width: 100vw !important; height: 100vh !important; inset: auto !important;
+    border: 0 !important; border-radius: 0 !important;
+  }
+  /* let the main column own all vertical space and scroll its content, not the window */
+  .mainpanel { height: 100vh !important; min-height: 0 !important; }
+  .views { min-height: 0 !important; }
+  /* CoherentGT can mis-size flex children; belt-and-suspenders so content areas scroll */
+  #log, .gpanel, .setup, .school, .drawerbody { min-height: 0 !important; }
+</style>`;
+html = html.replace('</head>', PANEL_FIT_CSS + '\n</head>');
+
 mkdirSync(dirname(OUT), { recursive: true });
 writeFileSync(OUT, html);
 console.log(`[build-panel] generated ${OUT} from ${SRC} (${html.length} bytes)`);

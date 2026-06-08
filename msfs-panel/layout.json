@@ -2,13 +2,18 @@
   "content": [
     {
       "path": "build-panel.mjs",
-      "size": 3483,
-      "date": 134253903661654484
+      "size": 4783,
+      "date": 134253948415247790
     },
     {
       "path": "build.bat",
       "size": 1257,
       "date": 134253916716572602
+    },
+    {
+      "path": "deploy.ps1",
+      "size": 1886,
+      "date": 134253944513723728
     },
     {
       "path": "README.md",
@@ -17,28 +22,83 @@
     },
     {
       "path": "Build/atc-panel.xml",
-      "size": 258,
-      "date": 134253913769871041
+      "size": 574,
+      "date": 134253922893543035
     },
     {
       "path": "Build/PackageDefinitions/atc-panel.xml",
-      "size": 607,
-      "date": 134253913656806091
+      "size": 622,
+      "date": 134253922893543035
+    },
+    {
+      "path": "Build/PackageDefinitions/atc-panel/ContentInfo/thumbnail.jpg",
+      "size": 5446,
+      "date": 134209576099249849
+    },
+    {
+      "path": "Build/Packages/atc-panel/layout.json",
+      "size": 123,
+      "date": 134253947194677218
+    },
+    {
+      "path": "Build/Packages/atc-panel/manifest.json",
+      "size": 311,
+      "date": 134253947194677218
+    },
+    {
+      "path": "Build/Packages/atc-panel/Build/atc-panel.spb",
+      "size": 655,
+      "date": 134253947194657143
     },
     {
       "path": "Build/PackageSources/atc-panel.xml",
       "size": 503,
-      "date": 134253916482288287
+      "date": 134253928017140564
+    },
+    {
+      "path": "Build/_Temp/_CommandsInputs.xml",
+      "size": 230,
+      "date": 134253947194687219
+    },
+    {
+      "path": "Build/_Temp/_FailedPackages.xml",
+      "size": 19,
+      "date": 134253947194677218
+    },
+    {
+      "path": "Build/_Temp/_ReadOnlyCommandsInputs.xml",
+      "size": 21,
+      "date": 134253947194687219
+    },
+    {
+      "path": "Build/_Temp/_TimeStampID.xml",
+      "size": 105,
+      "date": 134253947194632095
+    },
+    {
+      "path": "Build/_Temp/_metadata/atc-panel/ai-atc-ingamepanel.xml",
+      "size": 211,
+      "date": 134253947194667179
+    },
+    {
+      "path": "Build/_Temp/_timestamps/Output_0/atc-panel/ai-atc-ingamepanel.xml",
+      "size": 83,
+      "date": 134253947194657143
+    },
+    {
+      "path": "Build/_Temp/_timestamps/Output_0/atc-panel/ai-atc-ingamepanel_output.xml",
+      "size": 140,
+      "date": 134253947194667179
     },
     {
       "path": "html_ui/InGamePanels/ATCPanel/ATCPanel.html",
-      "size": 109517,
-      "date": 134253916819378956
+      "size": 110358,
+      "date": 134253959567359874
     },
     {
       "path": "html_ui/Textures/Menu/toolbar/ICON_TOOLBAR_ATC_PANEL.svg",
-      "size": 269,
-      "date": 134253914108605787
+      "size": 777,
+      "date": 134253927608802702
     },
     {
       "path": "InGamePanels/.gitkeep",

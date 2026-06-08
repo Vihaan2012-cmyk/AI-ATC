@@ -1,6 +1,6 @@
 {
   "name": "msfs-ai-atc",
-  "version": "0.2.5",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "Text-based AI ATC for MSFS 2020/2024: deterministic ATC engine + Qwen (Ollama) language layer, driven by an in-sim toolbar widget.",

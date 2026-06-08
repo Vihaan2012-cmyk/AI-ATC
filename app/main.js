@@ -154,7 +154,7 @@ function createWindow() {
 // taskbar grouping, and Windows search ("press Win, type Air Traffic Control") resolve to it.
 if (process.platform === 'win32') app.setAppUserModelId('com.msfsaiatc.app');
 
-app.whenReady().then(createWindow).then(registerPtt);
+app.whenReady().then(createWindow).then(registerPtt).then(registerOverlayKeys);
 app.on('window-all-closed', () => app.quit());
 app.on('before-quit', stopBrain);
 app.on('will-quit', () => { try { globalShortcut.unregisterAll(); } catch {} });
@@ -168,6 +168,29 @@ function registerPtt() {
     globalShortcut.register(accel, () => { if (win && !win.isDestroyed()) win.webContents.send('ptt:toggle'); });
   } catch (e) { console.error('PTT shortcut registration failed:', e); }
 }
+
+// Game-overlay hotkeys: usable while MSFS is focused (no alt-tab needed).
+//  Ctrl+Shift+A  show/hide the overlay (flick it away on final, bring it back on the ground)
+//  Ctrl+Shift+C  toggle click-through (overlay stays visible but the mouse passes to the sim)
+let clickThrough = false;
+function setClickThrough(on) {
+  if (!win || win.isDestroyed()) return clickThrough;
+  clickThrough = !!on;
+  // forward:true lets hover effects still fire while clicks pass through to MSFS
+  win.setIgnoreMouseEvents(clickThrough, { forward: true });
+  win.webContents.send('overlay:clickthrough', clickThrough);
+  return clickThrough;
+}
+function registerOverlayKeys() {
+  try {
+    globalShortcut.register('Control+Shift+A', () => {
+      if (!win || win.isDestroyed()) return;
+      if (win.isVisible()) win.hide(); else { win.show(); win.setAlwaysOnTop(true, 'screen-saver'); }
+    });
+    globalShortcut.register('Control+Shift+C', () => setClickThrough(!clickThrough));
+  } catch (e) { console.error('Overlay shortcut registration failed:', e); }
+}
+ipcMain.handle('overlay:toggleClickThrough', () => setClickThrough(!clickThrough));
 
 // window controls
 ipcMain.on('win:minimize', () => { if (win) win.minimize(); });

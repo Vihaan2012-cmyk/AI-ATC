@@ -1,6 +1,7 @@
-<AssetPackage Name="ai-atc-ingamepanel" Version="0.2.5">
+<?xml version="1.0" encoding="utf-8"?>
+<AssetPackage Version="0.2.5">
 	<ItemSettings>
-		<ContentType>SPB</ContentType>
+		<ContentType>MISC</ContentType>
 		<Title>AI ATC In-Game Panel</Title>
 		<Manufacturer>MSFS AI ATC</Manufacturer>
 		<Creator>MSFS AI ATC</Creator>
@@ -20,3 +21,4 @@
 		</AssetGroup>
 	</AssetGroups>
 </AssetPackage>
+
