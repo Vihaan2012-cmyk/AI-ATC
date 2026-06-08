@@ -2,13 +2,28 @@
 
 A real-time Air Traffic Control panel for Microsoft Flight Simulator 2020+ that connects to the local MSFS AI ATC brain.
 
-## Installation
+## Installation (MSFS 2020)
 
-1. Ensure the **Air Traffic Control desktop app** is running (see main project README).
-2. Copy the `msfs-panel` folder into your MSFS Community folder:
-   - Windows: `C:\Users\<YourUsername>\AppData\Local\Packages\Microsoft.FlightSimulator_<hash>\LocalState\packages\Community\msfs-panel`
-   - Or: `%USERPROFILE%\AppData\Local\Packages\Microsoft.FlightSimulator_*\LocalState\packages\Community`
-3. Launch MSFS and look for "ATC Panel" in your aircraft's toolbar (upper instrument area).
+MSFS 2020 only loads a toolbar panel if it is **compiled into an `.spb`** with the SDK — you cannot
+just drop the raw HTML folder in Community (that's why nothing appears). Steps:
+
+1. **Install the MSFS SDK** (enable Developer Mode in MSFS → SDK installer). It sets the `MSFS_SDK`
+   environment variable.
+2. From this `msfs-panel` folder, run **`build.bat`**. It:
+   - regenerates the panel HTML from the desktop widget,
+   - runs `fspackagetool.exe Build\atc-panel.xml` to compile `InGamePanel_ATCPanel.spb`,
+   - copies the `.spb` into `InGamePanels\`.
+3. Run **`node build-panel.mjs`** (or it runs in step 2) to refresh `layout.json`.
+4. Copy this entire `msfs-panel` folder into your MSFS **Community** folder.
+5. Ensure the **AI ATC desktop app** (or `npm run server`) is running so the panel can reach
+   `ws://localhost:8742`.
+6. Launch MSFS, load a flight, and look for the **AI ATC** button in the in-game toolbar.
+
+### Why a build step is required
+The toolbar button is declared in `Build/PackageSources/atc-panel.xml`
+(`<InGamePanels.InGamePanelDefinition … buttonVisible="true">`). MSFS reads this only from a compiled
+`.spb`, produced by `fspackagetool`. Structure mirrors the proven
+[bymaximus/msfs2020-toolbar-window-template](https://github.com/bymaximus/msfs2020-toolbar-window-template).
 
 ## Features
 

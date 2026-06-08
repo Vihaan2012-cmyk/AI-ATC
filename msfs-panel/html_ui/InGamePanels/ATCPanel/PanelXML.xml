@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<Panel Version="2.0">
-  <Include Path="Asobo\Include\Cursor.xml"/>
-  <Window Name="ATC" Popup="No" X="0" Y="0" Width="1024" Height="720" AlwaysOnTop="No" AlwaysShow="Yes">
-    <Component Name="ATC_Background" X="0" Y="0" Width="1024" Height="720"/>
-    <HTMLElement Name="ATC_Main" X="0" Y="0" Width="1024" Height="720" URL="ATCPanel.html"/>
-  </Window>
-</Panel>

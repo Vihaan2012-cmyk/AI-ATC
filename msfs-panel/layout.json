@@ -6,34 +6,39 @@
       "date": 134253903661654484
     },
     {
-      "path": "README.md",
-      "size": 3713,
-      "date": 134253904071233368
+      "path": "build.bat",
+      "size": 1000,
+      "date": 134253914394673652
     },
     {
-      "path": "html_ui/InGamePanels/InGamePanelsList.json",
-      "size": 296,
-      "date": 134253902980903095
+      "path": "README.md",
+      "size": 4550,
+      "date": 134253914565995193
+    },
+    {
+      "path": "Build/atc-panel.xml",
+      "size": 258,
+      "date": 134253913769871041
+    },
+    {
+      "path": "Build/PackageDefinitions/atc-panel.xml",
+      "size": 607,
+      "date": 134253913656806091
+    },
+    {
+      "path": "Build/PackageSources/atc-panel.xml",
+      "size": 505,
+      "date": 134253913554153314
     },
     {
       "path": "html_ui/InGamePanels/ATCPanel/ATCPanel.html",
       "size": 109517,
-      "date": 134253904231923970
+      "date": 134253914717318054
     },
     {
-      "path": "html_ui/InGamePanels/ATCPanel/icon.svg",
+      "path": "html_ui/Textures/Menu/toolbar/ICON_TOOLBAR_ATC_PANEL.svg",
       "size": 269,
-      "date": 134253903123816234
-    },
-    {
-      "path": "html_ui/InGamePanels/ATCPanel/panelInfo.json",
-      "size": 326,
-      "date": 134253881189152587
-    },
-    {
-      "path": "html_ui/InGamePanels/ATCPanel/PanelXML.xml",
-      "size": 402,
-      "date": 134253881172194235
+      "date": 134253914108605787
     }
   ]
 }

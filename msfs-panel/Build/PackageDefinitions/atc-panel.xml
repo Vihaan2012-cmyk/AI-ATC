@@ -1,0 +1,22 @@
+<AssetPackage Name="ai-atc-ingamepanel" Version="0.2.5">
+	<ItemSettings>
+		<ContentType>SPB</ContentType>
+		<Title>AI ATC In-Game Panel</Title>
+		<Manufacturer>MSFS AI ATC</Manufacturer>
+		<Creator>MSFS AI ATC</Creator>
+	</ItemSettings>
+	<Flags>
+		<VisibleInStore>false</VisibleInStore>
+		<CanBeReferenced>false</CanBeReferenced>
+	</Flags>
+	<AssetGroups>
+		<AssetGroup Name="ai-atc-ingamepanel">
+			<Type>SPB</Type>
+			<Flags>
+				<FSXCompatibility>false</FSXCompatibility>
+			</Flags>
+			<AssetDir>PackageSources\</AssetDir>
+			<OutputDir>Build\</OutputDir>
+		</AssetGroup>
+	</AssetGroups>
+</AssetPackage>
