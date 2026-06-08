@@ -375,6 +375,11 @@
             <div class="gfoot" style="padding:8px 0 0;">Declares the emergency, squawks 7700, and gets priority handling. Recorded in your logbook.</div>
           </div>
 
+          <div class="gsec">
+            <div class="gsec-h">Airport diagram</div>
+            <div id="airportDiagram" style="padding:8px;display:flex;justify-content:center;"></div>
+          </div>
+
           <div class="gfoot">Stock MSFS services via SimConnect. Voice works too — "request fuel", "open the main door".</div>
         </div>
       </div>
@@ -836,6 +841,26 @@ function renderGroundAircraft(){
     wrap.appendChild(b);
   }
   if($('gDoorHint')) $('gDoorHint').textContent = '· '+n+' exits (est. from '+(icao||'type')+')';
+  renderAirportDiagram();
+}
+// Simple top-down airport diagram: draws the active runway (from fpinfo.depRunway) as an SVG.
+function renderAirportDiagram(){
+  var el=$('airportDiagram'); if(!el) return;
+  var apt=(flight&&(curKind==='ground'||!flight.destination)?flight.origin:(flight&&flight.origin))||'';
+  var rwy=(fpinfo&&fpinfo.depRunway)||'';
+  var num=parseInt(rwy,10); if(!isFinite(num)) num=9; // default ~090
+  var deg=num*10, rad=(deg-90)*Math.PI/180;             // heading -> SVG angle (0deg = up)
+  var cx=90,cy=70,len=58;
+  var x1=cx-Math.cos(rad)*len, y1=cy-Math.sin(rad)*len, x2=cx+Math.cos(rad)*len, y2=cy+Math.sin(rad)*len;
+  var recip=((num+18-1)%36)+1;
+  el.innerHTML='<svg width="180" height="140" viewBox="0 0 180 140">'
+    +'<rect x="0" y="0" width="180" height="140" rx="8" fill="#0a121b" stroke="#182433"/>'
+    +'<line x1="'+x1.toFixed(0)+'" y1="'+y1.toFixed(0)+'" x2="'+x2.toFixed(0)+'" y2="'+y2.toFixed(0)+'" stroke="#5f7488" stroke-width="10" stroke-linecap="round"/>'
+    +'<line x1="'+x1.toFixed(0)+'" y1="'+y1.toFixed(0)+'" x2="'+x2.toFixed(0)+'" y2="'+y2.toFixed(0)+'" stroke="#cfe0f2" stroke-width="1.5" stroke-dasharray="4 5"/>'
+    +'<text x="90" y="20" fill="#74e6c2" font="700 12px monospace" font-family="ui-monospace,monospace" font-size="12" text-anchor="middle">'+esc(apt||'—')+'</text>'
+    +'<text x="'+x1.toFixed(0)+'" y="'+(y1<cy?y1-4:y1+12).toFixed(0)+'" fill="#9fb0c2" font-size="9" text-anchor="middle" font-family="ui-monospace,monospace">'+String(num).padStart(2,'0')+'</text>'
+    +'<text x="'+x2.toFixed(0)+'" y="'+(y2<cy?y2-4:y2+12).toFixed(0)+'" fill="#9fb0c2" font-size="9" text-anchor="middle" font-family="ui-monospace,monospace">'+String(recip).padStart(2,'0')+'</text>'
+    +'</svg>';
 }
 
 /* ---- clearance HUD strip ---- */
