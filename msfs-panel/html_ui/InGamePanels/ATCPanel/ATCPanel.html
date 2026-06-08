@@ -3,425 +3,1559 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ATC Panel</title>
+<!-- GENERATED in-sim panel — do not edit; edit widget/atc-widget.html + rerun build-panel.mjs -->
+<title>ATC Panel — Air Traffic Control</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
-  :root {
-    --accent: #6f8cff;
-    --g1: #2fb6ff;
-    --g2: #9b5cff;
-    --fs: 13px;
-  }
+  :root { --accent: #6f8cff; --g1: #2fb6ff; --g2: #9b5cff; --fs: 14px; }
+  .grad { background: linear-gradient(135deg, var(--g1), var(--g2)); }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
   body {
-    font: var(--fs)/1.5 'Segoe UI', 'Inter', system-ui, sans-serif;
-    color: #d8e2ee;
-    background: #0c1118;
-    display: flex;
-    flex-direction: column;
+    font: var(--fs)/1.5 "Inter", "Segoe UI", system-ui, sans-serif;
+    color: #d8e2ee; background: transparent;
   }
+  .mono { font-family: "Cascadia Mono", "Consolas", ui-monospace, monospace; }
 
-  .mono { font-family: 'Cascadia Mono', 'Consolas', ui-monospace, monospace; }
-  .accentbar { height: 3px; background: linear-gradient(90deg, var(--g1), var(--g2)); }
+  .shell {
+    position: fixed; inset: 0; display: flex;
+    background: #0c1118; border: 1px solid #1f2c3a; border-radius: 12px; overflow: hidden;
+  }
+  .mainpanel { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+  .accentbar { flex: 0 0 auto; height: 3px; background: linear-gradient(90deg, var(--g1), var(--g2)); }
 
   /* Title bar */
   .bar {
-    flex: 0 0 auto;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 14px;
-    background: #10171f;
-    border-bottom: 1px solid #1d2735;
+    flex: 0 0 auto; display: flex; align-items: center; gap: 9px;
+    padding: 9px 12px; background: #10171f; border-bottom: 1px solid #1d2735;
+    -webkit-app-region: drag;
   }
-  .brand {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-weight: 700;
-    color: #eaf2fb;
-    font-size: 12px;
-    letter-spacing: 0.5px;
-  }
-  .brand svg {
-    width: 16px;
-    height: 16px;
+  .brand { display: flex; align-items: center; gap: 8px; }
+  .brand svg { width: 18px; height: 18px; }
+  .brand .bn {
+    font-family: "Cascadia Mono", "Consolas", ui-monospace, monospace;
+    font-size: 12px; font-weight: 700; color: #eaf2fb;
+    background: #0e1a26; padding: 3px 8px;
+    border: 1px solid transparent; border-image: linear-gradient(135deg, var(--g1), var(--g2)) 1;
   }
   .grow { flex: 1; }
-  .stat {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.8px;
-    text-transform: uppercase;
-    color: #ff5f73;
-  }
-  .stat .led {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: currentColor;
-    box-shadow: 0 0 6px currentColor;
-  }
+  .stat { display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; color: #ff5f73; -webkit-app-region: no-drag; }
+  .stat .led { width: 8px; height: 8px; border-radius: 50%; background: currentColor; box-shadow: 0 0 7px currentColor; }
   .stat.on { color: var(--accent); }
+  .winctl { display: none; gap: 4px; -webkit-app-region: no-drag; }
+  .wc { width: 24px; height: 24px; border: 0; border-radius: 6px; background: #18222e; color: #b7c6d6; font-size: 13px; cursor: pointer; }
+  .wc:hover { background: #21303f; } #wcClose:hover { background: #b5364a; color: #fff; }
 
-  /* Radio info strip */
-  .radio {
-    flex: 0 0 auto;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 12px;
-    background: #0e1722;
-    border-bottom: 1px solid #182433;
-  }
-  .radio .cs { font-weight: 700; color: #eaf2fb; letter-spacing: 0.3px; }
-  .radio .rt { color: #6f8197; font-size: 11px; }
-  .radio .stn { color: var(--accent); font-weight: 700; font-size: 10px; letter-spacing: 0.6px; text-transform: uppercase; }
-  .radio .freq { margin-left: auto; font-size: 15px; font-weight: 700; color: #74e6c2; letter-spacing: 0.8px; }
+  /* Tabs */
+  .tabs { flex: 0 0 auto; display: flex; background: #0d141d; border-bottom: 1px solid #1c2633; }
+  .tab { flex: 1; padding: 9px 0; text-align: center; font-size: 11px; font-weight: 700; letter-spacing: 1px; color: #6f8197; background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer; }
+  .tab.active { color: #eaf2fb; border-image: linear-gradient(90deg, var(--g1), var(--g2)) 1; }
 
-  /* HUD (clearance readout) */
-  .hud {
-    flex: 0 0 auto;
-    display: flex;
-    gap: 1px;
-    padding: 6px 10px;
-    background: #0a121b;
-    border-bottom: 1px solid #182433;
-    overflow-x: auto;
-  }
-  .hudc {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    padding: 5px 9px;
-    background: #0e1722;
-    flex: 0 0 auto;
-  }
-  .hud .hk { font: 700 7.5px ui-monospace, Consolas, monospace; letter-spacing: 0.8px; color: #5f7488; }
-  .hud .hv { font: 700 11px ui-monospace, Consolas, monospace; color: #cfe0f2; letter-spacing: 0.3px; }
+  .views { flex: 1 1 auto; min-height: 0; position: relative; }
+  .view { position: absolute; inset: 0; display: none; flex-direction: column; }
+  .view.active { display: flex; }
+
+  /* ---- Comms view ---- */
+  .radio { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; padding: 9px 13px; background: #0e1722; border-bottom: 1px solid #182433; }
+  .radio .cs { font-weight: 700; color: #eaf2fb; letter-spacing: .3px; }
+  .radio .rt { color: #6f8197; font-size: 12px; }
+  .radio .stn { color: var(--accent); font-weight: 700; font-size: 11px; letter-spacing: .6px; text-transform: uppercase; }
+  .radio .freq { margin-left: auto; font-size: 16px; font-weight: 700; color: #74e6c2; letter-spacing: 1px; }
+  .radio .txind { font: 700 10px ui-monospace, Consolas, monospace; color: #ff5a5a; letter-spacing: 1px; padding: 2px 7px; border: 1px solid #5a1d1d; border-radius: 4px; background: #2a0e0e; animation: txpulse 1s ease-in-out infinite; }
+  @keyframes txpulse { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
+  /* COM1/COM2-style radio panel */
+  .companel { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; padding: 5px 13px; background: #0b131d; border-bottom: 1px solid #182433; }
+  .comslot { display: flex; flex-direction: column; gap: 1px; }
+  .comslot .comlbl { font: 700 8px ui-monospace, Consolas, monospace; letter-spacing: 1px; color: #5f7488; }
+  .comslot .comval { font: 700 14px ui-monospace, Consolas, monospace; color: #74e6c2; }
+  .comslot .comval.stby { color: #e0a14a; }
+  .comswap { margin-left: auto; background: #16273a; color: #cfe0f2; border: 1px solid #213447; border-radius: 5px; font-size: 14px; padding: 3px 9px; cursor: pointer; }
+  .comswap:hover { background: #1d3047; }
+  .radio .freq:empty::after { content: "---.---"; color: #3a4a5c; }
+  /* clearance HUD strip — persistent active-clearance readout */
+  .hud { flex: 0 0 auto; display: flex; gap: 1px; background: #0a121b; border-bottom: 1px solid #182433; overflow-x: auto; }
+  .hudc { display: flex; flex-direction: column; gap: 1px; padding: 6px 12px; background: #0e1722; flex: 1; min-width: 64px; }
+  .hudc.hudx { flex: 1.6; }
+  .hud .hk { font: 700 8.5px ui-monospace, Consolas, monospace; letter-spacing: 1px; color: #5f7488; }
+  .hud .hv { font: 700 13px ui-monospace, Consolas, monospace; color: #cfe0f2; letter-spacing: .5px; }
   .hud .hv.set { color: #74e6c2; }
   .hud .hv.warn { color: #e0a14a; }
 
-  /* Clearance banner */
-  .clrbanner {
-    flex: 0 0 auto;
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    padding: 5px 10px;
-    background: #10261d;
-    border-bottom: 1px solid #1d3a2c;
-  }
-  .clrbanner .clrlabel { font: 700 7.5px ui-monospace, Consolas, monospace; letter-spacing: 0.8px; color: #5a8f76; }
-  .clrbanner .clrtext { font: 600 11px ui-monospace, Consolas, monospace; color: #aef0d0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* Flight progress strip: controller chain timeline */
+  .progress { flex: 0 0 auto; display: flex; gap: 0; padding: 5px 8px; background: #0a121b; border-bottom: 1px solid #182433; overflow-x: auto; }
+  .progress .pstep { font: 700 8px ui-monospace, Consolas, monospace; letter-spacing: .5px; color: #46586b; padding: 2px 7px; white-space: nowrap; position: relative; }
+  .progress .pstep.done { color: #5a8f76; }
+  .progress .pstep.cur { color: #74e6c2; background: #10261d; border-radius: 4px; }
+  .progress .pstep:not(:last-child)::after { content: '›'; margin-left: 6px; color: #2a3a4a; }
 
-  /* Log area */
-  #log {
-    flex: 1 1 auto;
-    overflow-y: auto;
-    padding: 10px 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  #log::-webkit-scrollbar { width: 6px; }
-  #log::-webkit-scrollbar-thumb { background: #1f2c3a; border-radius: 6px; }
+  /* Pinned current-clearance banner */
+  .clrbanner { flex: 0 0 auto; display: flex; align-items: baseline; gap: 8px; padding: 6px 12px; background: #10261d; border-bottom: 1px solid #1d3a2c; }
+  .clrbanner .clrlabel { font: 700 8.5px ui-monospace, Consolas, monospace; letter-spacing: 1px; color: #5a8f76; }
+  .clrbanner .clrtext { font: 600 12px ui-monospace, Consolas, monospace; color: #aef0d0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-  .entry {
-    border-left: 2px solid #2a3b4d;
-    padding: 2px 0 2px 9px;
-    font-size: 12px;
-  }
+  /* Compact density mode: tighter padding + smaller HUD for a thin always-on-top strip */
+  body[data-compact="1"] #log { padding: 6px 9px; gap: 5px; }
+  body[data-compact="1"] .hudc { padding: 3px 8px; min-width: 52px; }
+  body[data-compact="1"] .hud .hv { font-size: 11px; }
+  body[data-compact="1"] .progress { padding: 3px 6px; }
+  body[data-compact="1"] .composer { padding: 5px 8px; }
+  /* High-contrast accessibility mode */
+  body[data-contrast="1"] { background: #000; }
+  body[data-contrast="1"] .hud .hv, body[data-contrast="1"] .ebody { color: #fff; }
+  body[data-contrast="1"] .hud .hk, body[data-contrast="1"] .tag { color: #ffd24a; }
+
+  #log { flex: 1 1 auto; overflow-y: auto; padding: 12px 13px; display: flex; flex-direction: column; gap: 10px; }
+  #log::-webkit-scrollbar { width: 7px; } #log::-webkit-scrollbar-thumb { background: #1f2c3a; border-radius: 7px; }
+  .entry { border-left: 2px solid #2a3b4d; padding: 2px 0 2px 10px; }
   .entry.atc { border-left-color: var(--accent); }
   .entry.you { border-left-color: #e0a14a; }
-  .entry.sys { border-left-color: transparent; text-align: center; color: #6f8197; font-size: 11px; }
-  .entry.chatter { border-left-color: #34465a; opacity: 0.6; }
-  .entry.chatter .tag { color: #7d93a8; }
-  .entry.chatter .ebody { color: #8ea3b8; font-style: italic; }
-
-  .emeta { display: flex; align-items: baseline; gap: 6px; margin-bottom: 1px; }
-  .emeta .tag { font-size: 9px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; }
-  .entry.atc .tag { color: var(--accent); }
-  .entry.you .tag { color: #e0a14a; }
-  .emeta .et { margin-left: auto; font-size: 9px; color: #56697d; }
+  .entry.sys { border-left-color: transparent; text-align: center; color: #6f8197; font-size: 12px; }
+  .entry.chatter { border-left-color: #34465a; opacity: .62; }
+  .entry.chatter .tag { color: #7d93a8; } .entry.chatter .ebody { color: #8ea3b8; font-style: italic; }
+  .entry.cpdlc { border-left-color: #43d17a; }
+  .entry.cpdlc .tag { color: #43d17a; } .entry.cpdlc .ebody { white-space: pre-wrap; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+  .emeta { display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px; }
+  .emeta .tag { font-size: 10px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; }
+  .entry.atc .tag { color: var(--accent); } .entry.you .tag { color: #e0a14a; }
+  .emeta .ef { font-size: 10px; color: #8aa; }
+  .emeta .et { margin-left: auto; font-size: 10px; color: #56697d; }
   .ebody { color: #dbe6f1; }
 
-  /* Quick action buttons */
-  .quick {
-    flex: 0 0 auto;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    padding: 8px 10px 0;
-  }
-  .q {
-    font-size: 11px;
-    font-weight: 600;
-    color: #cfe;
-    background: #122130;
-    border: 1px solid #21384a;
-    border-radius: 6px;
-    padding: 6px 10px;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
+  .quick { flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: 7px; padding: 9px 12px 0; }
+  .q { font-size: 12px; font-weight: 600; color: #cfe; background: #122130; border: 1px solid #21384a; border-radius: 7px; padding: 7px 11px; cursor: pointer; }
   .q:hover { border-color: var(--accent); color: #eafff8; }
-  .q:active { background: #16273a; }
 
-  /* Composer (input area) */
-  .composer {
-    flex: 0 0 auto;
-    display: flex;
-    gap: 7px;
-    padding: 8px 10px 10px;
-  }
-  #input {
-    flex: 1;
-    padding: 8px 10px;
-    border-radius: 6px;
-    border: 1px solid #243747;
-    background: #0f1925;
-    color: #fff;
-    font: inherit;
-    outline: none;
-  }
+  .composer { flex: 0 0 auto; display: flex; gap: 8px; padding: 10px 12px 12px; }
+  #input { flex: 1; padding: 11px 13px; border-radius: 9px; border: 1px solid #243747; background: #0f1925; color: #fff; font: inherit; outline: none; }
   #input:focus { border-color: var(--accent); }
   #input::placeholder { color: #5f7388; }
-  #send {
-    min-width: 44px;
-    border: 0;
-    border-radius: 6px;
-    cursor: pointer;
-    background: linear-gradient(135deg, var(--g1), var(--g2));
-    color: #fff;
-    font-weight: 700;
-    font-size: 11px;
-    transition: all 0.15s;
-  }
-  #send:hover:not([disabled]) { opacity: 0.9; }
-  #send[disabled] { opacity: 0.4; cursor: default; }
+  #send { min-width: 46px; border: 0; border-radius: 9px; cursor: pointer; background: linear-gradient(135deg, var(--g1), var(--g2)); color: #fff; font-weight: 800; }
+  #send[disabled] { opacity: .4; }
+  #mic { width: 42px; border: 1px solid #243747; border-radius: 9px; cursor: pointer; background: #0f1925; color: #cfe0f0; font-size: 16px; line-height: 1; transition: background .15s, border-color .15s, box-shadow .15s; }
+  #mic:hover { border-color: var(--accent); }
+  #mic.listening { background: linear-gradient(135deg, #ff5d6c, #ff2d55); border-color: #ff2d55; color: #fff; box-shadow: 0 0 0 0 rgba(255,45,85,.6); animation: micpulse 1.1s ease-out infinite; }
+  #mic.unsupported { opacity: .35; cursor: default; }
+  @keyframes micpulse { 0% { box-shadow: 0 0 0 0 rgba(255,45,85,.55); } 70% { box-shadow: 0 0 0 9px rgba(255,45,85,0); } 100% { box-shadow: 0 0 0 0 rgba(255,45,85,0); } }
 
-  /* Offline message */
-  .offline-banner {
-    flex: 0 0 auto;
-    padding: 10px 12px;
-    background: #2a1414;
-    border-bottom: 1px solid #5a2a2a;
-    color: #ff9a9a;
-    font-size: 12px;
-    text-align: center;
-    font-weight: 600;
-  }
-  .offline-banner.hidden { display: none; }
+  /* ---- Plan view ---- */
+  .planhead { flex: 0 0 auto; display: flex; gap: 10px; padding: 10px 13px; border-bottom: 1px solid #182433; font-size: 12px; color: #8aa0b6; }
+  .planhead b { color: #eaf2fb; }
+  .planinfo { flex: 0 0 auto; display: flex; gap: 8px; flex-wrap: wrap; padding: 6px 13px; border-bottom: 1px solid #182433; }
+  .planinfo .pinfo { font: 600 11px ui-monospace, Consolas, monospace; color: #9fb0c2; background: #0e1722; border: 1px solid #213447; border-radius: 6px; padding: 3px 8px; }
+  #planwrap { flex: 1 1 auto; min-height: 0; position: relative; }
+  #map { position: absolute; inset: 0; }
+  .leaflet-container { background: #0a0f15 !important; font: 11px "Segoe UI", sans-serif; }
+  .leaflet-tooltip.wptip { background: rgba(14,22,32,.92); border: 1px solid #2a3b4d; color: #cfe0f2; box-shadow: none; }
+  .planfoot { flex: 0 0 auto; padding: 8px 13px; border-top: 1px solid #182433; font-size: 11px; color: #6f8197; }
 
-  #empty {
-    text-align: center;
-    color: #6f8197;
-    font-size: 12px;
-    padding: 20px 0;
+  /* ---- Ground services (EFB-style ramp panel) ---- */
+  .gpanel { flex: 1; overflow-y: auto; padding: 0; background: #0a131c; }
+  .gbar { display: flex; align-items: center; justify-content: space-between; padding: 9px 14px; border-bottom: 1px solid #1a2836; background: #0c1722; }
+  .gbar-t { font: 800 11px ui-monospace, Consolas, monospace; letter-spacing: 2px; color: #cdd9e5; }
+  .gbar-s { font: 700 10px ui-monospace, Consolas, monospace; letter-spacing: 1px; color: #5f7488; padding: 2px 8px; border: 1px solid #24384a; border-radius: 4px; }
+  .gsec { border-bottom: 1px solid #15212d; padding: 10px 14px 12px; }
+  .gsec-h { font: 700 9.5px ui-monospace, Consolas, monospace; letter-spacing: 1.5px; color: #5f7488; margin-bottom: 8px; }
+  .glist { display: flex; flex-direction: column; gap: 1px; }
+  .grow2 { display: flex; align-items: center; gap: 11px; width: 100%; padding: 10px 11px; border: 0; border-left: 2px solid transparent; border-radius: 5px;
+    background: #0e1a25; color: #c3d2e0; cursor: pointer; text-align: left; transition: background .1s, border-color .1s; }
+  .grow2:hover { background: #122130; }
+  .grow2:active { background: #16283a; }
+  .grow2.on { border-left-color: #43d17a; background: #0f2018; }
+  .gico { width: 18px; height: 18px; flex: 0 0 18px; fill: none; stroke: #7d93a8; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .grow2:hover .gico { stroke: #cdd9e5; }
+  .grow2.on .gico { stroke: #43d17a; }
+  .gtx { flex: 1; font-size: 13px; font-weight: 600; }
+  .gst { font: 700 9.5px ui-monospace, Consolas, monospace; letter-spacing: .5px; color: #43d17a; min-width: 56px; text-align: right; }
+  .gdoors { display: grid; grid-template-columns: repeat(auto-fit, minmax(54px, 1fr)); gap: 6px; }
+  .gdoor { padding: 12px 0; border: 1px solid #24384a; border-radius: 5px; background: #0e1a25; color: #c3d2e0;
+    font: 700 13px ui-monospace, Consolas, monospace; letter-spacing: 1px; cursor: pointer; transition: all .1s; }
+  .gdoor:hover { border-color: var(--accent); color: #fff; }
+  .gdoor.on { border-color: #43d17a; color: #43d17a; background: #0f2018; }
+  .gmacros { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .gmacro { display: flex; flex-direction: column; gap: 3px; padding: 11px 12px; border: 1px solid #24384a; border-radius: 6px;
+    background: #0e1a25; color: #dbe6f1; font-weight: 700; font-size: 13px; cursor: pointer; text-align: left; transition: all .1s; }
+  .gmacro:hover { border-color: var(--accent); }
+  .gmacro small { font: 500 9.5px ui-monospace, Consolas, monospace; color: #5f7488; letter-spacing: .3px; }
+  .gfoot { padding: 11px 14px; font-size: 10.5px; color: #56697d; }
+  .gscen { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+  .gscen-b { padding: 9px 6px; border: 1px solid #5a2f2a; border-radius: 5px; background: #1c1210; color: #e0a090;
+    font-size: 11px; font-weight: 600; cursor: pointer; transition: all .1s; }
+  .gscen-b:hover { border-color: #d9534f; background: #2a1714; color: #ffd9cf; }
+  .gscen-b:active { transform: scale(.97); }
+
+  /* info button + flyout drawer */
+  .iconbtn { -webkit-app-region: no-drag; width: 24px; height: 24px; border: 0; border-radius: 6px; background: #18222e; color: #b7c6d6; font-size: 14px; cursor: pointer; }
+  .iconbtn:hover { background: #21303f; }
+  .drawer { flex: 0 0 340px; width: 340px; display: none; flex-direction: column; background: #0e1620; border-left: 1px solid #213447; }
+  .drawer.open { display: flex; }
+  .drawerhead { display: flex; align-items: center; justify-content: space-between; padding: 11px 14px; border-bottom: 1px solid #1c2838; font-weight: 800; letter-spacing: 1px; font-size: 11px; color: var(--accent); }
+  .drawerbody { flex: 1 1 auto; overflow-y: auto; padding: 12px 14px; }
+  .drawerbody .sect { margin-bottom: 16px; }
+  .drawerbody h3 { margin: 0 0 7px; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: #7e93a8; }
+  .kv { display: flex; gap: 8px; font-size: 13px; margin-bottom: 4px; }
+  .kv span { flex: 0 0 96px; color: #7e93a8; }
+  .kv b { flex: 1 1 auto; color: #eaf2fb; }
+  .metar { font-size: 11px; color: #bfe0d6; background: #0a1118; border: 1px solid #1d2a38; border-radius: 7px; padding: 7px 9px; word-break: break-word; }
+  .route2 { font-size: 11px; color: #9fb4ca; margin-top: 4px; word-break: break-word; }
+
+  /* ---- Setup view ---- */
+  .setup { flex: 1 1 auto; overflow-y: auto; padding: 14px; }
+  .setsearch { width: 100%; box-sizing: border-box; margin-bottom: 12px; padding: 8px 10px; background: #0e1722; border: 1px solid #213447; border-radius: 6px; color: #cfe0f2; font-size: 12px; }
+  .themes { display: inline-flex; gap: 6px; }
+  .themes .sw { width: 20px; height: 20px; border-radius: 50%; border: 2px solid #213447; cursor: pointer; }
+  .themes .sw:hover { border-color: #cfe0f2; }
+
+  /* Flight School */
+  .school { flex: 1 1 auto; overflow-y: auto; padding: 14px; }
+  .schoolhead { display: flex; align-items: center; justify-content: space-between; }
+  .schoolhead h3 { margin: 0; font-size: 13px; font-weight: 800; letter-spacing: 1px; color: var(--accent); text-transform: uppercase; }
+  .levelpick { display: flex; gap: 4px; }
+  .lvlbtn, .schtab { background: #0e1722; border: 1px solid #213447; color: #8fa3b8; border-radius: 6px; padding: 5px 10px; font-size: 11px; font-weight: 700; cursor: pointer; }
+  .lvlbtn.active, .schtab.active { background: #16273a; color: #cfe0f2; border-color: var(--accent); }
+  .schooltabs { display: flex; gap: 5px; margin: 12px 0; flex-wrap: wrap; }
+  .lesson { background: #0e1722; border: 1px solid #1d2c3c; border-radius: 8px; padding: 11px 12px; margin-bottom: 9px; }
+  .lesson h4 { margin: 0 0 6px; font-size: 12px; color: #cfe0f2; }
+  .lesson .exp { font-size: 12px; color: #9fb0c2; margin-bottom: 7px; line-height: 1.45; }
+  .lesson .say { font: 600 12px ui-monospace, Consolas, monospace; color: #aef0d0; background: #10261d; border-radius: 6px; padding: 7px 9px; }
+  .lesson .done { color: #5fe08a; font-size: 11px; font-weight: 700; }
+  .drillq { font-size: 13px; color: #cfe0f2; margin-bottom: 9px; }
+  .drillin { width: 100%; box-sizing: border-box; padding: 8px 10px; background: #0e1722; border: 1px solid #213447; border-radius: 6px; color: #cfe0f2; font-size: 12px; }
+  .drillfb { margin-top: 9px; font-size: 12px; line-height: 1.45; }
+  .drillfb.ok { color: #5fe08a; } .drillfb.bad { color: #e0a14a; }
+  .pbrow { display: flex; flex-direction: column; gap: 2px; padding: 8px 0; border-bottom: 1px solid #142233; }
+  .pbrow .pbq { font-size: 12px; color: #9fb0c2; } .pbrow .pba { font: 600 12px ui-monospace, Consolas, monospace; color: #aef0d0; }
+  .schoolprog { font-size: 11px; color: #6f8197; margin: 4px 0 10px; }
+  .sect { margin-bottom: 18px; }
+  .sect h3 { margin: 0 0 9px; font-size: 11px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: var(--accent); }
+  .row { margin-bottom: 10px; }
+  .row label { display: block; font-size: 11px; color: #8aa0b6; margin-bottom: 4px; font-weight: 600; }
+  .row input[type=text], .row input[type=password], .row select {
+    width: 100%; padding: 9px 11px; border-radius: 8px; border: 1px solid #243747; background: #0f1925; color: #fff; font: inherit; outline: none;
   }
+  .row input:focus, .row select:focus { border-color: var(--accent); }
+  .inline { display: flex; align-items: center; gap: 10px; }
+  .inline input[type=range] { flex: 1; accent-color: var(--accent); }
+  .inline input[type=color] { width: 40px; height: 30px; border: 1px solid #243747; border-radius: 6px; background: #0f1925; }
+  .toggle { display: flex; align-items: center; gap: 8px; }
+  .btn { border: 0; border-radius: 8px; padding: 9px 14px; font-weight: 700; cursor: pointer; background: linear-gradient(135deg, var(--g1), var(--g2)); color: #fff; }
+  .note { font-size: 11px; color: #6f8197; margin-top: 6px; }
+  .piperlist { display: flex; flex-direction: column; gap: 6px; margin: 4px 0; }
+  .pcont > summary { cursor: pointer; list-style: none; font-size: 12px; font-weight: 700; color: #9fd0ff; background: #122031; border: 1px solid #1d2c3c; border-radius: 7px; padding: 7px 10px; display: flex; justify-content: space-between; align-items: center; }
+  .pcont > summary::-webkit-details-marker { display: none; }
+  .pcont > summary .cnt { font-size: 11px; font-weight: 600; color: #7d93a8; }
+  .pcont[open] > summary { border-color: var(--accent); }
+  .pcont .pbody { display: flex; flex-direction: column; gap: 5px; padding: 6px 0 2px; }
+  .pv { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: #cfe0f2; background: #0f1925; border: 1px solid #1d2c3c; border-radius: 7px; padding: 6px 9px; }
+  .pv .pvsz { font-size: 10px; color: #6f8197; margin-left: 6px; }
+  .pv .pvbtn { border: 0; border-radius: 6px; padding: 4px 10px; font-size: 11px; font-weight: 700; cursor: pointer; background: linear-gradient(135deg, var(--g1), var(--g2)); color: #fff; }
+  .pv .pvbtn[disabled] { opacity: .5; cursor: default; background: #24405c; }
+  .pv .pvok { color: #43d17a; font-size: 11px; font-weight: 700; }
+  .piperlog { max-height: 96px; overflow: auto; background: #0c141d; border: 1px solid #182433; border-radius: 7px; padding: 7px 9px; font-size: 10.5px; line-height: 1.45; color: #8aa0b6; white-space: pre-wrap; margin: 6px 0 0; }
 </style>
 </head>
 <body>
-<div class="accentbar"></div>
-<div class="bar">
-  <span class="brand">
-    <svg viewBox="0 0 24 24" fill="none"><path d="M11 3h2v6l5 11h-4l-1-3h-2l-1 3H5l5-11z" fill="#dfeaf5"/><path d="M6 4q-3 3 0 8M18 4q3 3 0 8" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/></svg>
-    <code style="letter-spacing: 0.2px;">ATC PANEL</code>
-  </span>
-  <span class="grow"></span>
-  <span class="stat" id="stat"><span class="led"></span><span id="statTxt">offline</span></span>
-</div>
-<div class="offline-banner hidden" id="offlineBanner">Start the desktop Air Traffic Control app to use this panel.</div>
-<div class="radio">
-  <span class="cs" id="cs">&mdash;</span>
-  <span class="rt mono" id="rt"></span>
-  <span class="stn" id="stn"></span>
-  <span class="freq mono" id="freq"></span>
-</div>
-<div class="hud" id="hud" style="display: none;">
-  <div class="hudc"><span class="hk">ALT</span><span class="hv" id="hud-alt">—</span></div>
-  <div class="hudc"><span class="hk">HDG</span><span class="hv" id="hud-hdg">—</span></div>
-  <div class="hudc"><span class="hk">SPD</span><span class="hv" id="hud-spd">—</span></div>
-  <div class="hudc"><span class="hk">SQ</span><span class="hv" id="hud-sq">—</span></div>
-  <div class="hudc"><span class="hk">NEXT</span><span class="hv" id="hud-next">—</span></div>
-</div>
-<div class="clrbanner" id="clrbanner" style="display: none;"><span class="clrlabel">CLEARANCE</span><span class="clrtext" id="clrtext">—</span></div>
-<div id="log"><div class="entry sys" id="empty">Waiting for connection...</div></div>
-<div class="quick" id="quick"></div>
-<div class="composer">
-  <input id="input" placeholder="Type to ATC..." autocomplete="off" />
-  <button id="send" disabled>Send</button>
-</div>
+  <div class="shell">
+    <div class="mainpanel">
+    <div class="accentbar"></div>
+    <div class="bar">
+      <span class="brand">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M11 3h2v6l5 11h-4l-1-3h-2l-1 3H5l5-11z" fill="#dfeaf5"/><path d="M6 4q-3 3 0 8M18 4q3 3 0 8" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/></svg>
+        <code class="bn">Air&nbsp;Traffic&nbsp;Control</code>
+      </span>
+      <span class="grow"></span>
+      <span class="stat" id="stat"><span class="led"></span><span id="statTxt">offline</span></span>
+      <button class="iconbtn" id="infoBtn" title="Flight info">&#9432;</button>
+      <span class="winctl" id="winctl">
+        <button class="wc" id="wcPin" title="Pin on top">&#9737;</button>
+        <button class="wc" id="wcMin" title="Minimize">&#8211;</button>
+        <button class="wc" id="wcClose" title="Close">&#215;</button>
+      </span>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-v="comms">COMMS</button>
+      <button class="tab" data-v="plan">PLAN</button>
+      <button class="tab" data-v="ground">GROUND</button>
+      <button class="tab" data-v="school">SCHOOL</button>
+      <button class="tab" data-v="setup">SETUP</button>
+    </div>
+
+    <div class="views">
+      <!-- COMMS -->
+      <div class="view active" id="v-comms">
+        <div class="radio">
+          <span class="cs" id="cs">&mdash;</span>
+          <span class="rt mono" id="rt"></span>
+          <span class="stn" id="stn"></span>
+          <span class="freq mono" id="freq"></span>
+          <span class="txind" id="txind" style="display:none;">● TX</span>
+        </div>
+        <div class="companel" id="companel">
+          <div class="comslot"><span class="comlbl">COM1 ACT</span><span class="comval mono" id="com1act">—</span></div>
+          <div class="comslot"><span class="comlbl">STBY</span><span class="comval mono stby" id="com1sby">—</span></div>
+          <button class="comswap" id="comswap" title="Swap active/standby">&#8646;</button>
+        </div>
+        <div class="hud" id="hud" style="display:flex;">
+          <div class="hudc"><span class="hk">ALT</span><span class="hv" id="hud-alt">—</span></div>
+          <div class="hudc"><span class="hk">HDG</span><span class="hv" id="hud-hdg">—</span></div>
+          <div class="hudc"><span class="hk">SPD</span><span class="hv" id="hud-spd">—</span></div>
+          <div class="hudc"><span class="hk">SQUAWK</span><span class="hv" id="hud-sq">—</span></div>
+          <div class="hudc"><span class="hk">NEXT</span><span class="hv" id="hud-next">—</span></div>
+          <div class="hudc"><span class="hk">TRAFFIC</span><span class="hv" id="hud-tfc">—</span></div>
+          <div class="hudc"><span class="hk">SIGNAL</span><span class="hv" id="hud-sig">—</span></div>
+          <div class="hudc"><span class="hk">SCORE</span><span class="hv" id="hud-score">—</span></div>
+          <div class="hudc hudx"><span class="hk">EXPECTING</span><span class="hv" id="hud-exp">—</span></div>
+        </div>
+        <div class="progress" id="progress"></div>
+        <div class="clrbanner" id="clrbanner" style="display:none;"><span class="clrlabel">CLEARANCE</span><span class="clrtext" id="clrtext">—</span></div>
+        <div id="log"><div class="entry sys" id="empty">Connect and call ATC, or use a quick action below.</div></div>
+        <div id="cpdlcRow" style="display:none;padding:4px 12px 0;">
+          <button class="btn" id="cpdlcPdc" style="font-size:11px;padding:6px 11px;background:#143425;color:#9fe9bf;">Request PDC (datalink)</button>
+          <span class="note" style="margin-left:8px;">CPDLC connected</span>
+        </div>
+        <div class="quick" id="quick"></div>
+        <div class="composer">
+          <button id="mic" title="Push to talk (hold, or click to toggle)">&#127908;</button>
+          <input id="input" placeholder="Type your call to ATC..." autocomplete="off" />
+          <button id="send" disabled>Send</button>
+        </div>
+      </div>
+
+      <!-- PLAN -->
+      <div class="view" id="v-plan">
+        <div class="planhead"><span id="planRoute">No flight plan</span></div>
+        <div class="planinfo" id="planInfo">
+          <span class="pinfo" id="windsInfo">cruise —</span>
+          <span class="pinfo" id="freqInfo">freqs —</span>
+        </div>
+        <div id="planwrap"><div id="map"></div></div>
+        <div class="planfoot mono" id="planFoot"></div>
+      </div>
+
+      <!-- GROUND SERVICES -->
+      <div class="view" id="v-ground">
+        <div class="gpanel">
+          <div class="gbar"><span class="gbar-t">GROUND OPS</span><span class="gbar-s" id="gAircraft">—</span></div>
+
+          <div class="gsec">
+            <div class="gsec-h">Servicing</div>
+            <div class="glist">
+              <button class="grow2" data-svc="fuel"><svg viewBox="0 0 24 24" class="gico"><path d="M3 21V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v16M3 21h13M7 7h5M16 8l3 3v7a2 2 0 0 0 2 0v-7l-3-4"/></svg><span class="gtx">Fuel</span><span class="gst" data-st></span></button>
+              <button class="grow2" data-svc="baggage"><svg viewBox="0 0 24 24" class="gico"><rect x="5" y="8" width="14" height="12" rx="2"/><path d="M9 8V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v3"/></svg><span class="gtx">Baggage</span><span class="gst" data-st></span></button>
+              <button class="grow2" data-svc="catering"><svg viewBox="0 0 24 24" class="gico"><path d="M4 20h16M6 20v-6a6 6 0 0 1 12 0v6M12 8V4"/></svg><span class="gtx">Catering</span><span class="gst" data-st></span></button>
+              <button class="grow2" data-svc="power"><svg viewBox="0 0 24 24" class="gico"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/></svg><span class="gtx">Ground power</span><span class="gst" data-st></span></button>
+            </div>
+          </div>
+
+          <div class="gsec">
+            <div class="gsec-h">Access</div>
+            <div class="glist">
+              <button class="grow2" data-svc="jetway"><svg viewBox="0 0 24 24" class="gico"><path d="M3 10h10l4 4h4M3 14h10M13 6v12"/></svg><span class="gtx">Jetway</span><span class="gst" data-st></span></button>
+              <button class="grow2" data-svc="rampTruck"><svg viewBox="0 0 24 24" class="gico"><path d="M5 20h6l8-8M5 20v-3h3v-3h3v-3h3"/></svg><span class="gtx">Stairs</span><span class="gst" data-st></span></button>
+              <button class="grow2" data-svc="groundCrew"><svg viewBox="0 0 24 24" class="gico"><circle cx="12" cy="7" r="3"/><path d="M5 21v-2a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v2"/></svg><span class="gtx">Ground crew</span><span class="gst" data-st></span></button>
+              <button class="grow2" data-svc="pushback"><svg viewBox="0 0 24 24" class="gico"><path d="M21 12H7M11 8l-4 4 4 4M3 6v12"/></svg><span class="gtx">Pushback</span><span class="gst" data-st></span></button>
+            </div>
+          </div>
+
+          <div class="gsec">
+            <div class="gsec-h">Doors <span id="gDoorHint" style="color:#56697d;font-weight:500;letter-spacing:.3px;"></span></div>
+            <div class="gdoors" id="gDoors"></div>
+          </div>
+
+          <div class="gsec">
+            <div class="gsec-h">Turnaround</div>
+            <div class="gmacros">
+              <button class="gmacro" id="g-arrival">Arrival<small>power · stairs · exit 1 · baggage</small></button>
+              <button class="gmacro" id="g-departure">Departure<small>fuel · catering · baggage · close</small></button>
+            </div>
+          </div>
+
+          <div class="gsec">
+            <div class="gsec-h" style="color:#e0876b;">Declare emergency</div>
+            <div class="gscen">
+              <button class="gscen-b" data-scn="engine_failure">Engine failure</button>
+              <button class="gscen-b" data-scn="medical">Medical</button>
+              <button class="gscen-b" data-scn="depressurization">Depressurization</button>
+              <button class="gscen-b" data-scn="fuel">Fuel emergency</button>
+              <button class="gscen-b" data-scn="smoke_fire">Smoke / fire</button>
+              <button class="gscen-b" data-scn="control">Control issue</button>
+            </div>
+            <div class="gfoot" style="padding:8px 0 0;">Declares the emergency, squawks 7700, and gets priority handling. Recorded in your logbook.</div>
+          </div>
+
+          <div class="gsec">
+            <div class="gsec-h">Taxi route</div>
+            <div id="taxiRibbon" style="padding:8px;font-size:12px;color:#6f8197;">No taxi clearance yet.</div>
+          </div>
+
+          <div class="gsec">
+            <div class="gsec-h">Airport diagram</div>
+            <div id="airportDiagram" style="padding:8px;display:flex;justify-content:center;"></div>
+          </div>
+
+          <div class="gfoot">Stock MSFS services via SimConnect. Voice works too — "request fuel", "open the main door".</div>
+        </div>
+      </div>
+
+      <!-- FLIGHT SCHOOL -->
+      <div class="view" id="v-school">
+        <div class="school">
+          <div class="schoolhead">
+            <h3>Flight School</h3>
+            <div class="levelpick">
+              <button class="lvlbtn active" data-lvl="beginner">Beginner</button>
+              <button class="lvlbtn" data-lvl="advanced">Advanced</button>
+            </div>
+          </div>
+          <div class="note">Practice ATC radio on a built-in KSEA→KPDX flight — no MSFS needed.</div>
+          <div class="schooltabs">
+            <button class="schtab active" data-s="lessons">Lessons</button>
+            <button class="schtab" data-s="drill">Drill</button>
+            <button class="schtab" data-s="phrasebook">Phrasebook</button>
+            <button class="schtab" data-s="decode">Decode-it</button>
+          </div>
+          <div class="schoolbody" id="schoolbody"></div>
+        </div>
+      </div>
+
+      <!-- SETUP -->
+      <div class="view" id="v-setup">
+        <div class="setup">
+          <input type="text" id="setSearch" class="setsearch" placeholder="Search settings…" />
+          <div class="sect">
+            <h3>Connection</h3>
+            <div class="row"><label>SimBrief username</label><input type="text" id="cfgSimbrief" placeholder="your SimBrief username" /></div>
+            <div class="row"><label>SimBrief Pilot ID <span class="hint" style="color:#7e93a8;font-weight:400;">(used first if set)</span></label><input type="text" id="cfgSimbriefId" placeholder="numeric SimBrief ID" /></div>
+            <div class="row"><label>Hoppie ACARS logon code</label><input type="password" id="cfgHoppie" placeholder="optional" /></div>
+            <div class="note" id="connSaved" style="color:#74e6c2;min-height:14px;">Changes save automatically when you click away.</div>
+          </div>
+          <div class="sect">
+            <h3>AI model</h3>
+            <div class="row"><label>Provider</label><select id="cfgProvider"><option value="ollama">Ollama (local)</option><option value="openai-compatible">OpenAI-compatible (LM Studio, llama.cpp...)</option></select></div>
+            <div class="row"><label>Model</label><input type="text" id="cfgModel" placeholder="myaimodels/atc-nlu" /></div>
+            <div class="row"><label>Run on</label><select id="cfgDevice"><option value="auto">Auto (let it decide)</option><option value="gpu">GPU</option><option value="cpu">CPU</option></select></div>
+            <div class="note" style="color:#e0a14a;">&#9888; Leave the model as <b>myaimodels/atc-nlu</b> (fast, ATC-tuned) unless you know what you're doing. For free-form phrasing you can use <b>qwen2.5:14b</b>, but it's larger and slower.</div>
+            <button class="btn" id="saveConn">Save connection &amp; AI</button>
+            <button class="btn" id="restartBrain" style="background:#16273a;color:#cfe0f2;margin-top:6px;">Restart brain (apply changes)</button>
+            <div class="note" id="restartNote" style="min-height:14px;"></div>
+            <div class="note">Saved to the brain's .env. Restart the brain to apply.</div>
+          </div>
+          <div class="sect">
+            <h3>Realism</h3>
+            <div class="row"><label>Readback strictness</label><select id="cfgStrict"><option value="relaxed">Relaxed (anything accepted)</option><option value="normal">Normal (key items)</option><option value="strict">Strict (full readback)</option></select></div>
+            <div class="row"><label>Ambient radio chatter</label><select id="cfgChatter"><option value="off">Off</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High (busy)</option></select></div>
+            <button class="btn" id="saveRealism">Save realism</button>
+            <div class="note">Saved to the brain's .env. Restart the brain to apply.</div>
+          </div>
+          <div class="sect">
+            <h3>Backup</h3>
+            <div class="note">Export your settings + connection config to a file, or restore from one.</div>
+            <button class="btn" id="cfgExport" style="background:#16273a;color:#cfe0f2;">Export settings…</button>
+            <button class="btn" id="cfgImport" style="background:#16273a;color:#cfe0f2;margin-top:6px;">Import settings…</button>
+            <input type="file" id="cfgImportFile" accept="application/json" style="display:none;" />
+            <div class="note" id="backupNote" style="min-height:14px;"></div>
+          </div>
+          <div class="sect">
+            <h3>Setup &amp; tools</h3>
+            <button class="btn" id="openWiz" style="background:#18283a;color:#cfe0f2;">Re-run install wizard</button>
+            <button class="btn" id="exportLog" style="background:#18283a;color:#cfe0f2;margin-left:8px;">Export transcript</button>
+          </div>
+          <div class="sect">
+            <h3>Diagnostics</h3>
+            <div class="note" id="diagLine">brain: — · sim: — · latency: —</div>
+            <button class="btn" id="copyDiag" style="background:#18283a;color:#cfe0f2;margin-top:6px;">Copy diagnostics</button>
+            <div class="note" style="margin-top:6px;">Phone/tablet companion: open <b>http://&lt;this-pc-ip&gt;:8742/</b> in a browser on the same network.</div>
+          </div>
+          <div class="sect" id="logbookSect" style="display:none;">
+            <h3>Logbook</h3>
+            <div id="scoreNow" class="note" style="margin-bottom:6px;">No active flight yet.</div>
+            <button class="btn" id="logSave">Save this flight</button>
+            <button class="btn" id="logClear" style="background:#3a1820;color:#ffd0d6;margin-left:8px;">Clear logbook</button>
+            <button class="btn" id="openDash" style="background:#18283a;color:#cfe0f2;margin-left:8px;">Open flight dashboard</button>
+            <div class="note" style="margin-top:6px;">The dashboard opens in your browser — live map, stats, and flight history.</div>
+            <div id="logList" class="piperlist" style="margin-top:8px;"></div>
+          </div>
+          <div class="sect">
+            <h3>Voice</h3>
+            <div class="row toggle"><input type="checkbox" id="setVoice" /><label style="margin:0;">Speak ATC out loud (radio voice)</label></div>
+            <div class="row inline"><label style="margin:0;min-width:84px;">Speed</label><input type="range" id="setVoiceRate" min="0.7" max="1.6" step="0.05" /></div>
+            <div class="row inline"><label style="margin:0;min-width:84px;">Volume</label><input type="range" id="setVoiceVol" min="0" max="1" step="0.05" /></div>
+            <div class="row toggle"><input type="checkbox" id="setClicks" /><label style="margin:0;">Radio mic clicks (subtle key up/down)</label></div>
+            <div class="row toggle"><input type="checkbox" id="setAmbience" /><label style="margin:0;">Background radio-room ambience (very quiet)</label></div>
+            <div class="row toggle" id="piperRow" style="display:none;"><input type="checkbox" id="setPiper" /><label style="margin:0;">Use Piper HD neural voices (download below)</label></div>
+            <div id="piperPanel" style="display:none;">
+              <button class="btn" id="piperInstall" style="background:#18283a;color:#cfe0f2;">Install Piper engine</button>
+              <div id="piperBulk" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+                <button class="btn" id="piperAll" style="background:linear-gradient(135deg,var(--g1),var(--g2));">Download ALL voices</button>
+                <button class="btn" id="piperDelAll" style="background:#3a1820;color:#ffd0d6;">Delete all voices</button>
+              </div>
+              <div class="note" id="piperSummary" style="margin:7px 0 4px;">Voices grouped by continent. Each ~25–65 MB, downloaded on demand, cached.</div>
+              <div id="piperVoices" class="piperlist"></div>
+              <pre id="piperLog" class="piperlog"></pre>
+            </div>
+            <div class="note">System voice works offline out of the box. Piper adds distinct HD voices cast per controller (Electron only).</div>
+          </div>
+          <div class="sect">
+            <h3>Appearance</h3>
+            <div class="row inline"><label style="margin:0;min-width:84px;">Accent</label><input type="color" id="setAccent" value="#6f8cff" /></div>
+            <div class="row inline"><label style="margin:0;min-width:84px;">Themes</label><span id="themePresets" class="themes"></span></div>
+            <div class="row inline"><label style="margin:0;min-width:84px;">Opacity</label><input type="range" id="setOpacity" min="0.4" max="1" step="0.05" /></div>
+            <div class="row inline"><label style="margin:0;min-width:84px;">Text size</label><input type="range" id="setFont" min="0.85" max="1.3" step="0.05" /></div>
+            <div class="row toggle"><input type="checkbox" id="setPin" /><label style="margin:0;">Always on top</label></div>
+            <div class="row toggle"><input type="checkbox" id="setCompact" /><label style="margin:0;">Compact density (thin strip)</label></div>
+            <div class="row toggle"><input type="checkbox" id="setContrast" /><label style="margin:0;">High contrast (accessibility)</label></div>
+            <button class="btn" id="saveAppe">Save appearance</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    </div>
+    <div class="drawer" id="drawer">
+      <div class="drawerhead"><span>FLIGHT INFO</span><button class="iconbtn" id="drawerClose">&#215;</button></div>
+      <div class="drawerbody" id="drawerBody"></div>
+    </div>
+  </div>
 
 <script>
+var EL = (window.atcWin && window.atcWin.isElectron) ? window.atcWin : null;
 var WS_URL = 'ws://localhost:8742';
-var ws = null, flight = null, pos = null;
-var curKind = 'delivery';
-var hudAssigned = {};
-var logEl = document.getElementById('log');
-var STATION = { delivery: 'Delivery', ground: 'Ground', tower: 'Tower', departure: 'Departure', center: 'Center', approach: 'Approach' };
-
 function $(id) { return document.getElementById(id); }
-function esc(s) { return String(s).replace(/[&<>]/g, function(c) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;'}[c]; }); }
-function pad2(x) { return ('0' + x).slice(-2); }
-function nowHMS() { var n = new Date(); return pad2(n.getHours()) + ':' + pad2(n.getMinutes()) + ':' + pad2(n.getSeconds()); }
+function esc(s){ return String(s).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
+function pad2(x){ return ('0'+x).slice(-2); }
+function nowHMS(){ var n=new Date(); return pad2(n.getHours())+':'+pad2(n.getMinutes())+':'+pad2(n.getSeconds()); }
 
-function setStatus(s) {
-  var stat = $('stat');
-  stat.className = 'stat' + (s === 'on' ? ' on' : '');
-  $('statTxt').textContent = s === 'on' ? 'online' : 'offline';
-  $('offlineBanner').classList.toggle('hidden', s === 'on');
-  $('send').disabled = s !== 'on';
-  $('input').disabled = s !== 'on';
+var ws=null, flight=null, plan=null, pos=null, fpinfo=null, cpdlcOn=false, lastScore=null;
+var map=null, routeLine=null, acMarker=null, wpLayer=null;
+var STATION={delivery:'Clearance Delivery',ground:'Ground',tower:'Tower',departure:'Departure',center:'Center',approach:'Approach'};
+var logEl=$('log');
+
+// Flight progress strip: the gate-to-gate controller chain, current position highlighted.
+var PROGRESS_CHAIN=[['delivery','DEL'],['ground','GND'],['tower','TWR'],['departure','DEP'],['center','CTR'],['approach','APP'],['tower','TWR'],['ground','GND']];
+function renderProgress(){
+  var el=$('progress'); if(!el) return;
+  // Find the current index: first matching kind at-or-after our rough phase. Use a simple
+  // pointer that advances and never goes backward within a flight.
+  var idx=PROGRESS_CHAIN.findIndex(function(s){ return s[0]===curKind; });
+  if(idx<0) idx=0;
+  el.innerHTML='';
+  PROGRESS_CHAIN.forEach(function(s,i){
+    var d=document.createElement('span'); d.className='pstep'+(i<idx?' done':'')+(i===idx?' cur':'');
+    d.textContent=s[1]; el.appendChild(d);
+  });
+}
+function setClearanceBanner(text){
+  var b=$('clrbanner'), t=$('clrtext'); if(!b||!t) return;
+  // Strip the leading callsign for brevity.
+  t.textContent=String(text||'').replace(/^[^,]+,\s*/,''); b.style.display='flex';
+}
+// COM1 active/standby panel. Handoff frequencies auto-load standby; swap flips them.
+var comActive=null, comStandby=null;
+function fmtMhz(v){ var n=Number(v); return isFinite(n)&&n>0 ? n.toFixed(3) : '—'; }
+function comSetActive(mhz){ comActive=Number(mhz); var e=$('com1act'); if(e) e.textContent=fmtMhz(comActive); }
+function comSetStandby(mhz){ comStandby=Number(mhz); var e=$('com1sby'); if(e) e.textContent=fmtMhz(comStandby); }
+if($('comswap')) $('comswap').addEventListener('click',function(){
+  var a=comActive; comSetActive(comStandby); comSetStandby(a);
+  // Ask the brain/sim to actually tune the new active frequency.
+  if(comActive && ws && ws.readyState===1){ ws.send(JSON.stringify({type:'tune_com', mhz:comActive})); }
+});
+
+// ---- voice (offline system TTS, distinct voice per controller) ----
+var voiceCfg = { enabled:false, rate:1.05, vol:1, piper:false, clicks:false, ambience:false };
+var curKind = 'delivery';
+var sysVoices = [];
+function loadVoices(){ try{ sysVoices = window.speechSynthesis ? speechSynthesis.getVoices() : []; }catch(e){} }
+if(window.speechSynthesis){ loadVoices(); try{ speechSynthesis.onvoiceschanged = loadVoices; }catch(e){} }
+function hashStr(s){ var h=0,i; for(i=0;i<(s||'').length;i++){ h=(h*31+s.charCodeAt(i))|0; } return Math.abs(h); }
+function voiceFor(kind){ if(!sysVoices.length) return null; var en=sysVoices.filter(function(v){return /^en/i.test(v.lang);}); var pool=en.length?en:sysVoices; return pool[hashStr(kind)%pool.length]; }
+var actx=null;
+function ensureCtx(){ var AC=window.AudioContext||window.webkitAudioContext; if(!AC) return null; if(!actx) actx=new AC(); if(actx.state==='suspended') actx.resume(); return actx; }
+// Squelch tone removed — it sounded harsh ("microwave beep"). No-op kept so callers don't break.
+function squelch(){}
+// Subtle radio "click" — a very short, quiet filtered noise burst (mic key up/down), NOT a tone.
+// Off unless voiceCfg.clicks is on. Gentle by design so it never earrapes.
+function radioClick(){
+  if(!voiceCfg.clicks) return;
+  try{
+    var c=ensureCtx(); if(!c) return;
+    var t=c.currentTime, dur=0.035;
+    var n=Math.floor(c.sampleRate*dur), buf=c.createBuffer(1,n,c.sampleRate), d=buf.getChannelData(0);
+    for(var i=0;i<n;i++){ d[i]=(Math.sin(i*0.7)+ (i%7===0?0.5:-0.3))*0.5*(1-i/n); } // cheap deterministic-ish noise, decaying
+    var src=c.createBufferSource(); src.buffer=buf;
+    var bp=c.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=1800; bp.Q.value=0.7;
+    var g=c.createGain(); g.gain.value=0.06; // quiet
+    src.connect(bp); bp.connect(g); g.connect(c.destination); src.start(t); src.stop(t+dur);
+  }catch(e){}
+}
+// Ambient cockpit/radio hum loop (off by default). Started/stopped via setAmbience().
+var ambNode=null;
+function setAmbience(on){
+  try{
+    var c=ensureCtx(); if(!c) return;
+    if(on && !ambNode){
+      var o=c.createOscillator(), g=c.createGain(), lp=c.createBiquadFilter();
+      o.type='sine'; o.frequency.value=70; lp.type='lowpass'; lp.frequency.value=200; g.gain.value=0.015; // barely audible
+      o.connect(lp); lp.connect(g); g.connect(c.destination); o.start();
+      ambNode={o:o,g:g};
+    } else if(!on && ambNode){
+      try{ ambNode.o.stop(); }catch(e){} ambNode=null;
+    }
+  }catch(e){}
 }
 
-function hideEmpty() {
-  var e = $('empty');
-  if (e) e.parentNode.removeChild(e);
+/* ---- Piper HD voices (Electron only) ---- */
+var PIPER = (typeof window!=='undefined' && window.atcVoice) ? window.atcVoice : null;
+var piperVoices = [];   // flat [{key,label,sizeMb,installed}] across all continents
+var piperBinary = false;
+function piperReady(){ return voiceCfg.piper && PIPER && piperBinary && piperVoices.some(function(v){return v.installed;}); }
+function installedPiper(){ return piperVoices.filter(function(v){return v.installed;}); }
+// Voice casting: give each controller a stable, distinct voice, spread across installed voices.
+var castMap = {};
+var CAST_ORDER = ['delivery','ground','tower','departure','center','approach'];
+function rebuildCast(){
+  castMap = {};
+  var pool = installedPiper();
+  if(!pool.length) return;
+  CAST_ORDER.forEach(function(kind, i){ castMap[kind] = pool[(hashStr('atc:'+kind)+i)%pool.length].key; });
 }
-
-function entry(kind, tag, freq, text) {
-  hideEmpty();
-  var d = document.createElement('div');
-  d.className = 'entry ' + kind;
-  if (kind === 'sys') {
-    d.innerHTML = esc(text);
-  } else {
-    var meta = '<span class="tag">' + esc(tag) + '</span>' + (freq ? '<span class="ef mono" style="color:#7d93a8;">' + esc(freq) + '</span>' : '') + '<span class="et mono">' + nowHMS() + '</span>';
-    d.innerHTML = '<div class="emeta">' + meta + '</div><div class="ebody">' + esc(text) + '</div>';
-  }
-  logEl.appendChild(d);
-  logEl.scrollTop = logEl.scrollHeight;
-}
-
-function typeEntry(tag, freq, text) {
-  hideEmpty();
-  var d = document.createElement('div');
-  d.className = 'entry atc';
-  var meta = '<span class="tag">' + esc(tag) + '</span>' + (freq ? '<span class="ef mono" style="color:#7d93a8;">' + esc(freq) + '</span>' : '') + '<span class="et mono">' + nowHMS() + '</span>';
-  var body = document.createElement('div');
-  body.className = 'ebody';
-  d.innerHTML = '<div class="emeta">' + meta + '</div>';
-  d.appendChild(body);
-  logEl.appendChild(d);
-  logEl.scrollTop = logEl.scrollHeight;
-  body.textContent = text;
-}
-
-function setQuick(items) {
-  var c = $('quick');
-  c.innerHTML = '';
-  items.forEach(function(it) {
-    var b = document.createElement('button');
-    b.className = 'q';
-    b.textContent = it.label;
-    b.addEventListener('click', function() { sendText(it.send); });
-    c.appendChild(b);
+function piperCast(kind){ if(!castMap[kind]) rebuildCast(); return castMap[kind] || (installedPiper()[0]||{}).key || null; }
+function refreshPiper(){
+  if(!PIPER) return Promise.resolve();
+  return PIPER.status().then(function(s){
+    piperBinary = !!(s && s.binary);
+    piperVoices = [];
+    ((s && s.continents) || []).forEach(function(c){ (c.voices||[]).forEach(function(v){ piperVoices.push(v); }); });
+    rebuildCast();
+    renderPiperVoices(s);
   });
 }
 
-function defaultQuick() {
-  var dest = (flight && flight.destination) ? flight.destination : 'destination';
+// Play Piper output clean (no radio-band filtering / squelch — it sounded harsh).
+function playWav(arrbuf){
+  var c=ensureCtx(); if(!c) return false;
+  return c.decodeAudioData(arrbuf.slice(0)).then(function(buf){
+    var src=c.createBufferSource(); src.buffer=buf;
+    var g=c.createGain(); g.gain.value=(voiceCfg.vol!=null?voiceCfg.vol:1);
+    src.connect(g); g.connect(c.destination);
+    src.start();
+  }).catch(function(){ return false; });
+}
+
+function speakSystem(text, kind){
+  if(!window.speechSynthesis) return;
+  try{
+    var u=new SpeechSynthesisUtterance(text);
+    var v=voiceFor(kind||curKind); if(v) u.voice=v;
+    u.rate=voiceCfg.rate||1.05; u.pitch=0.9; u.volume=(voiceCfg.vol!=null?voiceCfg.vol:1);
+    squelch();
+    speechSynthesis.speak(u);
+  }catch(e){}
+}
+var lastSpoken=null; // {text,kind} for "say again" replay
+function speak(text, kind){
+  if(!text) return;
+  lastSpoken={text:text, kind:kind||curKind};
+  if(!voiceCfg.enabled) return;
+  radioClick();
+  if(piperReady()){
+    var key=piperCast(kind||curKind);
+    if(key){
+      PIPER.synth(text, key).then(function(r){
+        if(r && r.ok && r.wav){ playWav(r.wav); }
+        else { speakSystem(text, kind); } // fall back if synth failed
+      }).catch(function(){ speakSystem(text, kind); });
+      return;
+    }
+  }
+  speakSystem(text, kind);
+}
+// Replay the last ATC transmission (for "say again"). Slows it slightly for clarity.
+function sayAgain(){
+  if(!lastSpoken) return;
+  var prevRate=voiceCfg.rate; voiceCfg.rate=Math.max(0.8,(voiceCfg.rate||1.05)-0.2);
+  var was=voiceCfg.enabled; voiceCfg.enabled=true;
+  var t=lastSpoken.text, k=lastSpoken.kind;
+  speak(t,k);
+  voiceCfg.rate=prevRate; voiceCfg.enabled=was;
+}
+
+/* ---- Piper setup UI ---- */
+function piperLog(line){ var el=$('piperLog'); if(!el) return; el.textContent += (line+'\n'); el.scrollTop=el.scrollHeight; }
+function voiceRow(v, binary){
+  var row=document.createElement('div'); row.className='pv';
+  var label=document.createElement('span'); label.innerHTML=esc(v.label)+'<span class="pvsz">'+(v.sizeMb?('~'+v.sizeMb+' MB'):'')+'</span>';
+  var right;
+  if(v.installed){ right=document.createElement('span'); right.className='pvok'; right.textContent='installed ✓'; }
+  else {
+    right=document.createElement('button'); right.className='pvbtn'; right.textContent='Download'; right.disabled=!binary;
+    right.addEventListener('click',function(){ right.disabled=true; right.textContent='Downloading…'; PIPER.installVoice(v.key).then(function(){ refreshPiper(); }); });
+  }
+  row.appendChild(label); row.appendChild(right); return row;
+}
+function renderPiperVoices(s){
+  var wrap=$('piperVoices'); if(!wrap) return;
+  var binary = s && s.binary;
+  var btn=$('piperInstall'); if(btn){ btn.textContent = binary ? 'Piper engine installed ✓' : 'Install Piper engine'; btn.disabled = !!binary; }
+  if(s && s.error){ wrap.innerHTML='<div class="note">Could not load the voice catalog: '+esc(s.error)+'</div>'; return; }
+  var sum=$('piperSummary'); if(sum && s){ sum.textContent = (s.installed||0)+' of '+(s.total||0)+' voices installed, across '+((s.continents||[]).length)+' continents. Each ~25–65 MB, cached on disk.'; }
+  var all=$('piperAll'); if(all){ all.disabled = !binary || (s && s.installed>=s.total); all.textContent = (s && s.installed>=s.total && s.total>0) ? 'All voices installed ✓' : 'Download ALL voices'+((s&&s.total)?(' ('+(s.total-s.installed)+' left)'):''); }
+  var del=$('piperDelAll'); if(del){ del.disabled = !(s && s.installed>0); }
+  wrap.innerHTML='';
+  ((s && s.continents)||[]).forEach(function(c){
+    var det=document.createElement('details'); det.className='pcont';
+    var sm=document.createElement('summary');
+    sm.innerHTML='<span>'+esc(c.name)+'</span><span class="cnt">'+c.installed+' / '+c.total+'</span>';
+    det.appendChild(sm);
+    var body=document.createElement('div'); body.className='pbody';
+    (c.voices||[]).forEach(function(v){ body.appendChild(voiceRow(v, binary)); });
+    det.appendChild(body); wrap.appendChild(det);
+  });
+}
+if(PIPER){
+  $('piperRow').style.display='flex'; $('piperPanel').style.display='block';
+  PIPER.onLog(piperLog);
+  $('piperInstall').addEventListener('click',function(){ var b=$('piperInstall'); b.disabled=true; b.textContent='Installing…'; PIPER.installBinary().then(function(){ refreshPiper(); }); });
+  $('piperAll').addEventListener('click',function(){ var b=$('piperAll'); b.disabled=true; b.textContent='Downloading all…'; PIPER.installAll().then(function(){ refreshPiper(); }); });
+  $('piperDelAll').addEventListener('click',function(){ if(!confirm('Delete all downloaded Piper voices? (the engine stays installed)')) return; var b=$('piperDelAll'); b.disabled=true; PIPER.deleteAll().then(function(){ refreshPiper(); }); });
+  $('setPiper').addEventListener('change',function(){ voiceCfg.piper=this.checked; saveVoiceCfg(); });
+  refreshPiper();
+}
+
+/* ---- tabs ---- */
+var tabs=document.querySelectorAll('.tab');
+for (var i=0;i<tabs.length;i++) (function(t){
+  t.addEventListener('click',function(){
+    for (var j=0;j<tabs.length;j++) tabs[j].classList.remove('active');
+    t.classList.add('active');
+    var v=t.getAttribute('data-v');
+    document.querySelectorAll('.view').forEach(function(el){ el.classList.remove('active'); });
+    $('v-'+v).classList.add('active');
+    if (v==='plan') showMap();
+  });
+})(tabs[i]);
+
+/* ---- comms ---- */
+function hideEmpty(){ var e=$('empty'); if(e) e.parentNode.removeChild(e); }
+function entry(kind, tag, freq, text){
+  hideEmpty();
+  var d=document.createElement('div'); d.className='entry '+kind;
+  if (kind==='sys'){ d.innerHTML=esc(text); }
+  else {
+    var meta='<span class="tag">'+esc(tag)+'</span>'+(freq?'<span class="ef mono">'+esc(freq)+'</span>':'')+'<span class="et mono">'+nowHMS()+'</span>';
+    d.innerHTML='<div class="emeta">'+meta+'</div><div class="ebody">'+esc(text)+'</div>';
+  }
+  logEl.appendChild(d); logEl.scrollTop=logEl.scrollHeight;
+}
+// ATC message revealed live ~250 wpm, smoothly (rAF, time-based). Click to reveal instantly.
+var CPS = 400 * 5 / 60; // chars/sec for ~400 wpm
+function typeEntry(tag, freq, text){
+  hideEmpty();
+  var d=document.createElement('div'); d.className='entry atc';
+  var meta='<span class="tag">'+esc(tag)+'</span>'+(freq?'<span class="ef mono">'+esc(freq)+'</span>':'')+'<span class="et mono">'+nowHMS()+'</span>';
+  var body=document.createElement('div'); body.className='ebody';
+  d.innerHTML='<div class="emeta">'+meta+'</div>'; d.appendChild(body);
+  logEl.appendChild(d); logEl.scrollTop=logEl.scrollHeight;
+  var start=null, done=false;
+  function finish(){ if(done)return; done=true; body.textContent=text; logEl.scrollTop=logEl.scrollHeight; }
+  d.addEventListener('click',finish);
+  function frame(ts){
+    if(done) return;
+    if(start===null) start=ts;
+    var n=Math.floor((ts-start)*CPS/1000);
+    if(n>=text.length){ finish(); return; }
+    body.textContent=text.slice(0,n);
+    logEl.scrollTop=logEl.scrollHeight;
+    requestAnimationFrame(frame);
+  }
+  if(text.length) requestAnimationFrame(frame); else body.textContent='';
+}
+
+function setStatus(s){
+  $('stat').className='stat'+(s==='on'?' on':'');
+  $('statTxt').textContent = s==='on'?'online':(s==='connecting'?'connecting':'offline');
+  $('send').disabled = s!=='on';
+}
+function setQuick(items){
+  var c=$('quick'); c.innerHTML='';
+  items.forEach(function(it){ var b=document.createElement('button'); b.className='q'; b.textContent=it.label;
+    b.addEventListener('click',function(){ if(it.action==='sayagain'){ sayAgain(); } else { sendText(it.send); } }); c.appendChild(b); });
+}
+function defaultQuick(){
+  var dest=(flight&&flight.destination)?flight.destination:'destination';
   setQuick([
-    { label: 'Get ATIS', send: 'Request ATIS.' },
-    { label: 'Request clearance', send: 'Delivery, request IFR clearance to ' + dest + ', information Alpha.' },
-    { label: 'Pushback', send: 'Ground, request pushback.' },
-    { label: 'Taxi', send: 'Ground, request taxi.' },
-    { label: 'Ready', send: 'Tower, holding short, ready for departure.' },
-    { label: 'Traffic', send: 'Say traffic.' }
+    {label:'Get ATIS',send:'Request ATIS.'},
+    {label:'Request clearance',send:'Delivery, request IFR clearance to '+dest+', information Alpha.'},
+    {label:'Pushback',send:'Ground, request pushback.'},
+    {label:'Taxi',send:'Ground, request taxi.'},
+    {label:'Ready for departure',send:'Tower, holding short, ready for departure.'},
+    {label:'Say traffic',send:'Say traffic.'},
+    {label:'Say again',action:'sayagain'}
   ]);
 }
+function sendText(text){
+  var t=(typeof text==='string'?text:$('input').value).replace(/^\s+|\s+$/g,'');
+  if(!t||!ws||ws.readyState!==1) return;
+  entry('you','You','',t);
+  ws.send(JSON.stringify({type:'pilot_tx',text:t}));
+  $('input').value='';
+}
+$('send').addEventListener('click',function(){ sendText(); });
+$('input').addEventListener('keydown',function(e){ if(e.key==='Enter'||e.keyCode===13) sendText(); });
+if($('cpdlcPdc')) $('cpdlcPdc').addEventListener('click',function(){ if(ws&&ws.readyState===1){ ws.send(JSON.stringify({type:'cpdlc_pdc'})); entry('sys','','','Requesting PDC over datalink…'); } });
 
-function sendText(text) {
-  var t = (typeof text === 'string' ? text : $('input').value).replace(/^\s+|\s+$/g, '');
-  if (!t || !ws || ws.readyState !== 1) return;
-  entry('you', 'You', '', t);
-  ws.send(JSON.stringify({ type: 'pilot_tx', text: t }));
-  $('input').value = '';
+/* ---- ground services ---- */
+function sendGround(svc){ if(ws&&ws.readyState===1) ws.send(JSON.stringify({type:'ground_svc', service:svc})); }
+function flashGround(svc, ok){
+  var b=document.querySelector('[data-svc="'+svc+'"]'); if(!b) return;
+  var s=b.querySelector('[data-st]');
+  if(ok){ b.classList.add('on'); if(s) s.textContent='REQ'; setTimeout(function(){ b.classList.remove('on'); if(s) s.textContent=''; }, 4000); }
+  else { if(s){ s.textContent='N/A'; s.style.color='#e0a14a'; setTimeout(function(){ s.textContent=''; s.style.color=''; }, 4000); } }
+}
+Array.prototype.forEach.call(document.querySelectorAll('[data-svc]'), function(b){
+  b.addEventListener('click', function(){ sendGround(b.dataset.svc); });
+});
+// Quick-turnaround macros: fire a sequence of services with small gaps so the sim queues them.
+function runMacro(list){ list.forEach(function(svc,i){ setTimeout(function(){ sendGround(svc); }, i*350); }); }
+if($('g-arrival')) $('g-arrival').addEventListener('click', function(){ runMacro(['power','rampTruck','door','baggage']); entry('sys','','','Arrival services requested.'); });
+if($('g-departure')) $('g-departure').addEventListener('click', function(){ runMacro(['fuel','catering','baggage','door']); entry('sys','','','Departure services requested.'); });
+
+// Emergency scenarios — declare with a confirm (sends scenario, ATC takes priority).
+Array.prototype.forEach.call(document.querySelectorAll('.gscen-b[data-scn]'), function(b){
+  b.addEventListener('click', function(){
+    var name=b.textContent;
+    if(!confirm('Declare '+name+' emergency? ATC will give you priority and you\'ll squawk 7700.')) return;
+    if(ws&&ws.readyState===1){ ws.send(JSON.stringify({type:'scenario', service:b.dataset.scn})); entry('sys','','','Declared: '+name+'.'); var t=document.querySelector('.tab[data-v="comms"]'); if(t)t.click(); }
+  });
+});
+
+// Auto-detect aircraft from the flight plan and render a sensible number of exits.
+// (SimConnect can't report door count, so we estimate from the ICAO type — toggling a
+// non-existent exit simply no-ops, so over-estimating is harmless.)
+function exitCountFor(icao){
+  var t=(icao||'').toUpperCase();
+  if(/^A38|^B74|^A35K|^B77W|^B779/.test(t)) return 8;       // very large widebody
+  if(/^B77|^A33|^A34|^B78|^B76|^A35|^MD11|^B74/.test(t)) return 6; // widebody
+  if(/^A32|^A31|^B73|^B71|^E19|^E29|^A22|^BCS|^MD8|^MD9|^B75/.test(t)) return 4; // narrowbody
+  if(/^E1|^E7|^CRJ|^DH8|^AT[47]|^SF3|^B19|^B36|^SW4/.test(t)) return 3; // regional/turboprop
+  if(/^C172|^C152|^C82|^DA|^SR2|^PA|^BE|^TBM|^P28/.test(t)) return 1;  // GA
+  return 4; // sensible default
+}
+function renderGroundAircraft(){
+  var ac = fpinfo && (fpinfo.aircraftName || fpinfo.aircraft);
+  var icao = fpinfo && fpinfo.aircraft;
+  if($('gAircraft')) $('gAircraft').textContent = ac ? String(ac).toUpperCase() : '—';
+  rememberAircraftProfile(icao);
+  var n = exitCountFor(icao);
+  var wrap=$('gDoors'); if(!wrap) return;
+  wrap.innerHTML='';
+  for(var i=1;i<=n;i++){
+    var b=document.createElement('button'); b.className='gdoor';
+    b.dataset.svc = i===1 ? 'door' : ('door'+i);
+    b.textContent = i;
+    b.addEventListener('click', (function(s){ return function(){ sendGround(s); }; })(b.dataset.svc));
+    wrap.appendChild(b);
+  }
+  if($('gDoorHint')) $('gDoorHint').textContent = '· '+n+' exits (est. from '+(icao||'type')+')';
+  renderAirportDiagram();
+}
+// Simple top-down airport diagram: draws the active runway (from fpinfo.depRunway) as an SVG.
+function renderAirportDiagram(){
+  var el=$('airportDiagram'); if(!el) return;
+  var apt=(flight&&(curKind==='ground'||!flight.destination)?flight.origin:(flight&&flight.origin))||'';
+  var rwy=(fpinfo&&fpinfo.depRunway)||'';
+  var num=parseInt(rwy,10); if(!isFinite(num)) num=9; // default ~090
+  var deg=num*10, rad=(deg-90)*Math.PI/180;             // heading -> SVG angle (0deg = up)
+  var cx=90,cy=70,len=58;
+  var x1=cx-Math.cos(rad)*len, y1=cy-Math.sin(rad)*len, x2=cx+Math.cos(rad)*len, y2=cy+Math.sin(rad)*len;
+  var recip=((num+18-1)%36)+1;
+  el.innerHTML='<svg width="180" height="140" viewBox="0 0 180 140">'
+    +'<rect x="0" y="0" width="180" height="140" rx="8" fill="#0a121b" stroke="#182433"/>'
+    +'<line x1="'+x1.toFixed(0)+'" y1="'+y1.toFixed(0)+'" x2="'+x2.toFixed(0)+'" y2="'+y2.toFixed(0)+'" stroke="#5f7488" stroke-width="10" stroke-linecap="round"/>'
+    +'<line x1="'+x1.toFixed(0)+'" y1="'+y1.toFixed(0)+'" x2="'+x2.toFixed(0)+'" y2="'+y2.toFixed(0)+'" stroke="#cfe0f2" stroke-width="1.5" stroke-dasharray="4 5"/>'
+    +'<text x="90" y="20" fill="#74e6c2" font="700 12px monospace" font-family="ui-monospace,monospace" font-size="12" text-anchor="middle">'+esc(apt||'—')+'</text>'
+    +'<text x="'+x1.toFixed(0)+'" y="'+(y1<cy?y1-4:y1+12).toFixed(0)+'" fill="#9fb0c2" font-size="9" text-anchor="middle" font-family="ui-monospace,monospace">'+String(num).padStart(2,'0')+'</text>'
+    +'<text x="'+x2.toFixed(0)+'" y="'+(y2<cy?y2-4:y2+12).toFixed(0)+'" fill="#9fb0c2" font-size="9" text-anchor="middle" font-family="ui-monospace,monospace">'+String(recip).padStart(2,'0')+'</text>'
+    +'</svg>';
 }
 
-$('send').addEventListener('click', function() { sendText(); });
-$('input').addEventListener('keydown', function(e) { if (e.key === 'Enter' || e.keyCode === 13) sendText(); });
-
-function flText(ft) { if (ft == null) return null; return ft >= 18000 ? ('FL' + Math.round(ft / 100)) : (Math.round(ft).toLocaleString() + 'ft'); }
-function hudSet(id, val, cls) {
-  var e = $(id);
-  if (!e) return;
-  e.textContent = (val == null || val === '') ? '—' : val;
-  e.className = 'hv' + (val != null && val !== '' && cls ? (' ' + cls) : '');
-}
-function hudShow() { if ($('hud')) $('hud').style.display = 'flex'; }
-
-function hudApply(a) {
+/* ---- clearance HUD strip ---- */
+function flText(ft){ if(ft==null) return null; return ft>=18000 ? ('FL'+Math.round(ft/100)) : (Math.round(ft).toLocaleString()+'ft'); }
+function hudSet(id, val, cls){ var e=$(id); if(!e) return; e.textContent = (val==null||val==='') ? '—' : val; e.className = 'hv' + (val!=null&&val!==''&&cls ? (' '+cls) : ''); }
+function hudShow(){ if($('hud')) $('hud').style.display='flex'; }
+// Track which fields ATC has assigned, so live sim data doesn't overwrite a clearance value.
+var hudAssigned = {};
+function hudApply(a){
   hudShow();
-  if (a.altitudeFt != null) { hudSet('hud-alt', flText(a.altitudeFt), 'set'); hudAssigned.alt = true; }
-  if (a.headingDeg != null) { hudSet('hud-hdg', String(a.headingDeg).padStart(3, '0') + '°', 'set'); hudAssigned.hdg = true; }
-  if (a.speedKt != null) { hudSet('hud-spd', a.speedKt + 'kt', 'set'); hudAssigned.spd = true; }
-  if (a.squawk) hudSet('hud-sq', a.squawk, 'set');
-  if (a.nextFreqMhz != null) hudSet('hud-next', Number(a.nextFreqMhz).toFixed(3) + (a.nextStation ? (' ' + a.nextStation) : ''), 'set');
+  if(a.altitudeFt!=null){ hudSet('hud-alt', flText(a.altitudeFt), 'set'); hudAssigned.alt=true; }
+  if(a.headingDeg!=null){ hudSet('hud-hdg', String(a.headingDeg).padStart(3,'0')+'°', 'set'); hudAssigned.hdg=true; }
+  if(a.speedKt!=null){ hudSet('hud-spd', a.speedKt+'kt', 'set'); hudAssigned.spd=true; }
+  if(a.squawk) hudSet('hud-sq', a.squawk, 'set');
+  if(a.nextFreqMhz!=null) hudSet('hud-next', Number(a.nextFreqMhz).toFixed(3)+(a.nextStation?(' '+a.nextStation):''), 'set');
 }
-
-function hudLive(p) {
-  if (!p) return;
+// Live flight data from the sim -> ALT/HDG/SPD, unless ATC has assigned that field (keep the clearance).
+function hudLive(p){
+  if(!p) return; hudShow();
+  if(!hudAssigned.alt && p.altFt!=null) hudSet('hud-alt', Math.round(p.altFt).toLocaleString()+' ft');
+  if(!hudAssigned.hdg && p.hdg!=null) hudSet('hud-hdg', String(Math.round(p.hdg)%360).padStart(3,'0')+'°');
+  if(!hudAssigned.spd && p.gsKt!=null) hudSet('hud-spd', Math.round(p.gsKt)+' kt');
+}
+function hudExpecting(exp){ hudShow(); hudSet('hud-exp', exp==='readback' ? 'READBACK' : 'nothing', exp==='readback'?'warn':null); }
+/* Live traffic: show the count and how close the nearest is; warn if it's within 5 nm. */
+function updateTraffic(m){
   hudShow();
-  if (!hudAssigned.alt && p.altFt != null) hudSet('hud-alt', Math.round(p.altFt).toLocaleString() + ' ft');
-  if (!hudAssigned.hdg && p.hdg != null) hudSet('hud-hdg', String(Math.round(p.hdg) % 360).padStart(3, '0') + '°');
-  if (!hudAssigned.spd && p.gsKt != null) hudSet('hud-spd', Math.round(p.gsKt) + ' kt');
+  var n = m.count|0;
+  if(n===0){ hudSet('hud-tfc', 'clear'); return; }
+  var nearest = (m.aircraft && m.aircraft[0]) ? m.aircraft[0] : null;
+  var txt = n + (nearest ? (' · ' + nearest.rangeNm + 'nm') : '');
+  hudSet('hud-tfc', txt, (nearest && nearest.rangeNm <= 5) ? 'warn' : 'set');
 }
+renderGroundAircraft();
 
-function connect() {
-  setStatus('connecting');
-  try {
-    ws = new WebSocket(WS_URL);
-    ws.onopen = function() { setStatus('on'); entry('sys', '', '', 'Connected to ATC brain.'); };
-    ws.onclose = function() { setStatus('off'); setTimeout(connect, 2000); };
-    ws.onerror = function() { setStatus('off'); };
-    ws.onmessage = function(ev) {
-      var m;
-      try { m = JSON.parse(ev.data); } catch (e) { return; }
-      if (m.type === 'hello') {
-        flight = m;
-        $('cs').textContent = m.callsign;
-        $('rt').textContent = m.origin + ' ▸ ' + m.destination;
-        defaultQuick();
-      } else if (m.type === 'atc_tx') {
-        var f = m.freq ? Number(m.freq).toFixed(3) : '';
-        typeEntry(m.from, f, m.text);
-        if (m.freq) $('freq').textContent = Number(m.freq).toFixed(3);
-        if (m.expecting === 'readback') setClearanceBanner(m.text);
-      } else if (m.type === 'state') {
-        $('stn').textContent = STATION[m.activeController] || '';
-        curKind = m.activeController || curKind;
-      } else if (m.type === 'clearance') {
-        hudApply(m.assigned || {});
-      } else if (m.type === 'squawk') {
-        hudSet('hud-sq', m.code, 'set');
-      } else if (m.type === 'position') {
-        pos = m;
-        hudLive(m);
-      } else if (m.type === 'chatter') {
-        entry('chatter', m.from, '', m.text);
-      } else if (m.type === 'error') {
-        entry('sys', '', '', 'error: ' + m.error);
-      }
+/* ---- speech-to-text (push-to-talk) ---- */
+var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+var rec=null, listening=false, heard='';
+var micBtn=$('mic');
+function setMic(on){
+  listening=on; micBtn.classList.toggle('listening', on);
+  micBtn.title = on ? 'Listening… (click to stop)' : 'Push to talk (click, or hold Space)';
+  var tx=$('txind'); if(tx) tx.style.display = on ? 'inline-flex' : 'none';
+  // Volume ducking: drop ambience + cancel any in-progress speech while the pilot transmits.
+  if(on){ try{ if(window.speechSynthesis) speechSynthesis.cancel(); }catch(e){} duckAudio(true); }
+  else { duckAudio(false); }
+}
+// Duck ATC/ambience audio while transmitting (lower ambience gain; restore after).
+function duckAudio(on){
+  try{ if(ambNode && ambNode.g){ ambNode.g.gain.value = on ? 0.004 : 0.015; } }catch(e){}
+}
+function startListen(){
+  if(!SR || listening) return;
+  heard='';
+  try{
+    rec=new SR(); rec.lang='en-US'; rec.interimResults=true; rec.continuous=false; rec.maxAlternatives=1;
+    if(window.speechSynthesis) try{ speechSynthesis.cancel(); }catch(e){} // don't transcribe the controller
+    rec.onresult=function(e){
+      var fin='', intr='';
+      for(var i=e.resultIndex;i<e.results.length;i++){ var r=e.results[i]; if(r.isFinal) fin+=r[0].transcript; else intr+=r[0].transcript; }
+      if(intr) $('input').value=intr;
+      if(fin){ heard=fin.replace(/^\s+|\s+$/g,''); $('input').value=heard; }
     };
-  } catch (e) {
-    setStatus('off');
-    setTimeout(connect, 2000);
+    rec.onerror=function(ev){ if(ev && ev.error==='not-allowed') entry('sys','','', 'mic blocked — allow microphone access'); };
+    rec.onend=function(){ setMic(false); rec=null; if(heard){ sendText(heard); heard=''; } };
+    rec.start(); setMic(true);
+  }catch(e){ setMic(false); }
+}
+function stopListen(){ if(rec){ try{ rec.stop(); }catch(e){} } }
+if(!SR){ micBtn.classList.add('unsupported'); micBtn.title='Voice input not supported in this build'; }
+else {
+  micBtn.addEventListener('click',function(){ if(listening) stopListen(); else startListen(); }); // click = toggle
+  // Space = hold-to-talk (when not typing in the input box)
+  document.addEventListener('keydown',function(e){ if(e.code==='Space' && document.activeElement!==$('input')){ e.preventDefault(); if(!listening) startListen(); } });
+  document.addEventListener('keyup',function(e){ if(e.code==='Space' && document.activeElement!==$('input') && listening){ e.preventDefault(); stopListen(); } });
+  // Global push-to-talk (Electron): Ctrl+Shift+Space toggles even when MSFS is focused.
+  if(EL && EL.onPtt){ EL.onPtt(function(){ if(listening) stopListen(); else startListen(); }); }
+}
+
+/* ---- websocket ---- */
+function connect(){
+  setStatus('connecting');
+  ws=new WebSocket(WS_URL);
+  ws.onopen=function(){ setStatus('on'); };
+  ws.onclose=function(){ setStatus('off'); setTimeout(connect,1500); };
+  ws.onerror=function(){};
+  ws.onmessage=function(ev){
+    var m; try{ m=JSON.parse(ev.data); }catch(e){ return; }
+    if(m.type==='hello'){ flight=m; $('cs').textContent=m.callsign; $('rt').textContent=m.origin+' ▸ '+m.destination; defaultQuick(); }
+    else if(m.type==='flightplan'){ plan=m; $('planRoute').innerHTML='<b>'+esc(m.origin)+'</b> &#9656; <b>'+esc(m.destination)+'</b>  &middot; '+(m.aircraft||'')+'  &middot; cruise '+(m.cruise||'?')+' ft'; drawRoute(); }
+    else if(m.type==='fpinfo'){ fpinfo=m; if($('drawer').classList.contains('open')) renderDrawer(); renderGroundAircraft(); }
+    else if(m.type==='atc_tx'){ var f=m.freq?Number(m.freq).toFixed(3):''; typeEntry(m.from,f,m.text); speak(m.text, curKind); if(m.freq) $('freq').textContent=Number(m.freq).toFixed(3); hudExpecting(m.expecting); if(m.expecting==='readback') setClearanceBanner(m.text); if(m.atisLoopSeconds) startAtisLoop(m.text, m.atisLoopSeconds); if(/\bexpect\b|remain this frequency/i.test(m.text)) flashCue(m.text); if(/\btaxi\b|progressive/i.test(m.text)) renderTaxiRibbon(m.text); }
+    else if(m.type==='state'){ $('stn').textContent=STATION[m.activeController]||''; curKind=m.activeController||curKind; renderProgress(); }
+    else if(m.type==='clearance'){ hudApply(m.assigned||{}); if(m.assigned&&m.assigned.nextFreqMhz!=null) comSetStandby(m.assigned.nextFreqMhz); }
+    else if(m.type==='squawk'){ hudSet('hud-sq', m.code, 'set'); }
+    else if(m.type==='radio'){ var rf=Number(m.com1).toFixed(3); $('freq').textContent=rf; if(m.active){ comSetActive(m.com1); } else { comSetStandby(m.com1); } entry('sys','','', (m.active?'COM1 tuned to ':'COM1 standby set to ')+rf); }
+    else if(m.type==='position'){ pos=m; updatePlanFoot(); updateAircraft(); hudLive(m); if(m.com1Mhz) comSetActive(m.com1Mhz); if(m.readability!=null) hudSig(m.readability); recordTrack(m); }
+    else if(m.type==='traffic'){ updateTraffic(m); updateTrafficMap(m); }
+    else if(m.type==='scorecard'){ lastScore=m; renderScore(); }
+    else if(m.type==='chatter'){ entry('chatter', m.from, '', m.text); }
+    else if(m.type==='cpdlc_status'){ cpdlcOn=!!m.enabled; if($('cpdlcRow')) $('cpdlcRow').style.display = cpdlcOn?'block':'none'; }
+    else if(m.type==='cpdlc_in'){ entry('cpdlc', 'CPDLC ◂ '+m.from, '', m.text); }
+    else if(m.type==='cpdlc_sent'){ entry('sys','','', m.ok? ('CPDLC sent to '+m.to) : ('CPDLC failed: '+(m.error||m.to))); }
+    else if(m.type==='ground_ack'){ flashGround(m.service, m.ok); }
+    else if(m.type==='error'){ entry('sys','','', 'error: '+m.error); }
+  };
+}
+
+/* ---- flight plan map ---- */
+function updatePlanFoot(){
+  if(!pos){ $('planFoot').textContent=''; return; }
+  $('planFoot').textContent='POS '+pos.lat.toFixed(3)+', '+pos.lon.toFixed(3)+'   HDG '+Math.round(pos.hdg)+'   '+Math.round(pos.altFt)+' ft   '+Math.round(pos.gsKt)+' kt';
+}
+function drawPlan(){
+  var cv=$('plan'); if(!cv||!$('v-plan').classList.contains('active')) return;
+  var wrap=$('planwrap'); var dpr=window.devicePixelRatio||1;
+  var W=wrap.clientWidth, H=wrap.clientHeight; if(W<10||H<10) return;
+  cv.width=W*dpr; cv.height=H*dpr; var ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,W,H);
+  function msg(t){ ctx.fillStyle='#46586c'; ctx.font='13px "Segoe UI",sans-serif'; ctx.textAlign='center'; ctx.fillText(t, W/2, H/2); }
+  var pts=[];
+  if(plan){ if(plan.originPos) pts.push({ident:plan.origin,lat:plan.originPos.lat,lon:plan.originPos.lon,role:'orig'});
+    (plan.waypoints||[]).forEach(function(w){ pts.push({ident:w.ident,lat:w.lat,lon:w.lon}); });
+    if(plan.destPos) pts.push({ident:plan.destination,lat:plan.destPos.lat,lon:plan.destPos.lon,role:'dest'}); }
+  // Fit to the ROUTE only, so an off-route aircraft can't squish the map.
+  var bb = pts.length>=2 ? pts : (pos ? [{lat:pos.lat-0.15,lon:pos.lon-0.15},{lat:pos.lat+0.15,lon:pos.lon+0.15}] : null);
+  if(!bb){ msg('No flight plan'); return; }
+  var minLat=1e9,maxLat=-1e9,minLon=1e9,maxLon=-1e9;
+  bb.forEach(function(p){ minLat=Math.min(minLat,p.lat);maxLat=Math.max(maxLat,p.lat);minLon=Math.min(minLon,p.lon);maxLon=Math.max(maxLon,p.lon); });
+  var pad=42, meanLat=(minLat+maxLat)/2, cos=Math.cos(meanLat*Math.PI/180)||1;
+  var lonSpan=Math.max((maxLon-minLon)*cos,0.0001), latSpan=Math.max(maxLat-minLat,0.0001);
+  var scale=Math.min((W-2*pad)/lonSpan,(H-2*pad)/latSpan);
+  var ox=(W-lonSpan*scale)/2, oy=(H-latSpan*scale)/2;
+  function P(lat,lon){ return [ox+(lon-minLon)*cos*scale, oy+(maxLat-lat)*scale]; }
+  var g1=getCss('--g1')||'#2fb6ff', g2=getCss('--g2')||'#9b5cff';
+  if(pts.length>=2){
+    var pA=P(pts[0].lat,pts[0].lon), pB=P(pts[pts.length-1].lat,pts[pts.length-1].lon);
+    var grad=ctx.createLinearGradient(pA[0],pA[1],pB[0],pB[1]); grad.addColorStop(0,g1); grad.addColorStop(1,g2);
+    ctx.strokeStyle=grad; ctx.lineWidth=2.5; ctx.beginPath();
+    pts.forEach(function(p,i){ var xy=P(p.lat,p.lon); if(i===0)ctx.moveTo(xy[0],xy[1]); else ctx.lineTo(xy[0],xy[1]); }); ctx.stroke();
+    pts.forEach(function(p){
+      var xy=P(p.lat,p.lon);
+      var col = p.role==='orig' ? '#5fe08a' : (p.role==='dest' ? '#ff8a6b' : '#86d8c6');
+      ctx.fillStyle=col; ctx.beginPath(); ctx.arc(xy[0],xy[1], p.role?5:3, 0, 7); ctx.fill();
+      ctx.fillStyle = p.role ? '#eaf2fb' : '#8aa3b8'; ctx.font=(p.role?'700 11px':'10px')+' "Segoe UI",sans-serif'; ctx.textAlign='center';
+      ctx.fillText(p.ident, xy[0], xy[1]-9);
+    });
+  } else { msg('No flight plan'); }
+  // aircraft — clamped to the viewport with an "off route" hint if it's elsewhere
+  if(pos){
+    var a=P(pos.lat,pos.lon);
+    var off = a[0]<6||a[0]>W-6||a[1]<6||a[1]>H-6;
+    a[0]=Math.max(11,Math.min(W-11,a[0])); a[1]=Math.max(11,Math.min(H-11,a[1]));
+    ctx.save(); ctx.translate(a[0],a[1]); ctx.rotate((pos.hdg||0)*Math.PI/180);
+    ctx.fillStyle = off ? '#9a8a3a' : '#ffd24a';
+    ctx.beginPath(); ctx.moveTo(0,-10); ctx.lineTo(7,8); ctx.lineTo(0,4); ctx.lineTo(-7,8); ctx.closePath(); ctx.fill(); ctx.restore();
+    if(off){ ctx.fillStyle='#9a8a3a'; ctx.font='9px "Segoe UI",sans-serif'; ctx.textAlign='center'; ctx.fillText('off route', a[0], a[1] + (a[1]>H/2 ? -14 : 18)); }
   }
 }
+function getCss(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+function showMap(){ refreshPlanInfo(); if(typeof L==='undefined') return; if(!map) initMap(); else { map.invalidateSize(); drawRoute(); updateAircraft(); } }
+function initMap(){
+  map=L.map('map',{zoomControl:false,attributionControl:false}).setView([20,0],2);
+  // SimBrief-style light terrain: tan/yellow land, blue water (Esri World Topo).
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:19}).addTo(map);
+  L.control.zoom({position:'bottomright'}).addTo(map);
+  setTimeout(function(){ if(!map)return; map.invalidateSize(); drawRoute(); updateAircraft(); }, 60);
+}
+function drawRoute(){
+  if(!map||!plan) return;
+  if(wpLayer){ wpLayer.remove(); } wpLayer=L.layerGroup().addTo(map);
+  var pts=[]; if(plan.originPos)pts.push([plan.originPos.lat,plan.originPos.lon]);
+  (plan.waypoints||[]).forEach(function(w){ pts.push([w.lat,w.lon]); });
+  if(plan.destPos)pts.push([plan.destPos.lat,plan.destPos.lon]);
+  if(routeLine){ routeLine.remove(); routeLine=null; }
+  if(pts.length>=2){
+    routeLine=L.polyline(pts,{color:getCss('--g2')||'#9b5cff',weight:3,opacity:.9}).addTo(map);
+    (plan.waypoints||[]).forEach(function(w){ L.circleMarker([w.lat,w.lon],{radius:3,color:'#86d8c6',weight:1,fillOpacity:1}).bindTooltip(w.ident,{className:'wptip'}).addTo(wpLayer); });
+    if(plan.originPos)L.circleMarker([plan.originPos.lat,plan.originPos.lon],{radius:5,color:'#5fe08a',weight:2,fillOpacity:1}).bindTooltip(plan.origin,{permanent:true,direction:'top',className:'wptip'}).addTo(wpLayer);
+    if(plan.destPos)L.circleMarker([plan.destPos.lat,plan.destPos.lon],{radius:5,color:'#ff8a6b',weight:2,fillOpacity:1}).bindTooltip(plan.destination,{permanent:true,direction:'top',className:'wptip'}).addTo(wpLayer);
+    try{ map.fitBounds(routeLine.getBounds().pad(0.35)); }catch(e){}
+  }
+}
+var rangeLayer=null, trafficLayer=null;
+function updateAircraft(){
+  if(!map||!pos) return;
+  var html='<div style="transform:rotate('+(pos.hdg||0)+'deg);color:#ffd24a;font-size:22px;line-height:1;">&#9650;</div>';
+  var icon=L.divIcon({html:html,className:'acicon',iconSize:[22,22],iconAnchor:[11,11]});
+  if(!acMarker){ acMarker=L.marker([pos.lat,pos.lon],{icon:icon}).addTo(map); }
+  else { acMarker.setLatLng([pos.lat,pos.lon]); acMarker.setIcon(icon); }
+  // Range rings: 10 / 20 / 40 nm around ownship (1 nm = 1852 m).
+  if(rangeLayer){ rangeLayer.remove(); } rangeLayer=L.layerGroup().addTo(map);
+  [10,20,40].forEach(function(nm){
+    L.circle([pos.lat,pos.lon],{radius:nm*1852,color:'#3a5168',weight:1,fill:false,opacity:.5,dashArray:'4 6'}).addTo(rangeLayer);
+  });
+}
+// Plot live traffic markers from a 'traffic' WS message on the PLAN map.
+function updateTrafficMap(m){
+  if(!map) return;
+  if(trafficLayer){ trafficLayer.remove(); } trafficLayer=L.layerGroup().addTo(map);
+  (m.aircraft||[]).forEach(function(t){
+    if(t.lat==null||t.lon==null) return;
+    var col = t.onGround ? '#7e93a8' : (t.vertical==='same' ? '#ff6b6b' : '#6fa8ff');
+    L.circleMarker([t.lat,t.lon],{radius:4,color:col,weight:1,fillOpacity:.9})
+      .bindTooltip(esc(t.callsign||'traffic')+' · '+(t.altFt||0)+'ft',{className:'wptip'}).addTo(trafficLayer);
+  });
+}
+window.addEventListener('resize', function(){ if(map) map.invalidateSize(); });
 
-function setClearanceBanner(text) {
-  var b = $('clrbanner'), t = $('clrtext');
-  if (!b || !t) return;
-  t.textContent = String(text || '').replace(/^[^,]+,\s*/, '');
-  b.style.display = 'flex';
+/* ---- window controls (Electron) ---- */
+if(EL){
+  $('winctl').style.display='flex';
+  $('wcMin').addEventListener('click',function(){ EL.minimize(); });
+  $('wcClose').addEventListener('click',function(){ EL.close(); });
+  $('wcPin').addEventListener('click',function(){ EL.togglePin(); });
 }
 
+/* ---- settings / config ---- */
+function applyAppearance(s){
+  document.documentElement.style.setProperty('--accent', s.accent||'#6f8cff');
+  document.documentElement.style.setProperty('--fs', (14*(s.fontScale||1))+'px');
+  document.body.setAttribute('data-compact', s.compact ? '1' : '0');
+  document.body.setAttribute('data-contrast', s.highContrast ? '1' : '0');
+}
+function loadSetup(){
+  // appearance
+  var s = { accent:'#6f8cff', opacity:1, fontScale:1, alwaysOnTop:true, voiceEnabled:false, voiceRate:1.05, voiceVol:1, voicePiper:false };
+  function fill(){
+    $('setAccent').value=s.accent; $('setOpacity').value=s.opacity; $('setFont').value=s.fontScale; $('setPin').checked=!!s.alwaysOnTop;
+    if($('setCompact')) $('setCompact').checked=!!s.compact;
+    if($('setContrast')) $('setContrast').checked=!!s.highContrast;
+    $('setVoice').checked = s.voiceEnabled!==false; $('setVoiceRate').value = s.voiceRate||1.05; $('setVoiceVol').value = (s.voiceVol!=null?s.voiceVol:1);
+    if($('setPiper')) $('setPiper').checked = !!s.voicePiper;
+    voiceCfg = { enabled: s.voiceEnabled!==false, rate: parseFloat(s.voiceRate)||1.05, vol: (s.voiceVol!=null?parseFloat(s.voiceVol):1), piper: !!s.voicePiper, clicks: !!s.voiceClicks, ambience: !!s.voiceAmbience };
+    if($('setClicks')) $('setClicks').checked = !!s.voiceClicks;
+    if($('setAmbience')) $('setAmbience').checked = !!s.voiceAmbience;
+    setAmbience(voiceCfg.ambience);
+    applyAppearance(s);
+  }
+  if(EL){ EL.getSettings().then(function(v){ s=v; fill(); }); } else { try{ s=JSON.parse(localStorage.getItem('atc.appe')||'{}'); s=Object.assign({accent:'#6f8cff',opacity:1,fontScale:1,alwaysOnTop:true},s);}catch(e){} fill(); }
+  // config
+  if(EL){ EL.getConfig().then(function(c){ $('cfgSimbrief').value=c.SIMBRIEF_USERNAME||''; $('cfgSimbriefId').value=c.SIMBRIEF_USERID||''; $('cfgHoppie').value=c.HOPPIE_LOGON||''; $('cfgProvider').value=c.LLM_PROVIDER||'ollama'; $('cfgModel').value=c.LLM_MODEL||c.OLLAMA_MODEL||''; $('cfgDevice').value=c.LLM_DEVICE||'auto'; $('cfgStrict').value=c.ATC_STRICTNESS||'normal'; $('cfgChatter').value=c.ATC_CHATTER||'low'; }); }
+  renderScore(); renderLogbook();
+}
+$('saveAppe').addEventListener('click',function(){
+  var s={ accent:$('setAccent').value, opacity:parseFloat($('setOpacity').value), fontScale:parseFloat($('setFont').value), alwaysOnTop:$('setPin').checked,
+    compact: $('setCompact') ? $('setCompact').checked : false,
+    highContrast: $('setContrast') ? $('setContrast').checked : false,
+    voiceEnabled:$('setVoice').checked, voiceRate:parseFloat($('setVoiceRate').value), voiceVol:parseFloat($('setVoiceVol').value),
+    voicePiper: $('setPiper') ? $('setPiper').checked : false,
+    voiceClicks: $('setClicks') ? $('setClicks').checked : false,
+    voiceAmbience: $('setAmbience') ? $('setAmbience').checked : false };
+  applyAppearance(s);
+  voiceCfg = { enabled:s.voiceEnabled, rate:s.voiceRate, vol:s.voiceVol, piper:s.voicePiper, clicks:s.voiceClicks, ambience:s.voiceAmbience };
+  setAmbience(voiceCfg.ambience);
+  if(EL) EL.saveSettings(s); else localStorage.setItem('atc.appe', JSON.stringify(s));
+});
+if($('setClicks')) $('setClicks').addEventListener('change',function(){ voiceCfg.clicks=this.checked; saveVoiceCfg(); if(this.checked) radioClick(); });
+if($('setAmbience')) $('setAmbience').addEventListener('change',function(){ voiceCfg.ambience=this.checked; setAmbience(this.checked); saveVoiceCfg(); });
+// Persist just the Piper toggle immediately (without requiring "Save appearance").
+function saveVoiceCfg(){
+  if(EL){ EL.getSettings().then(function(v){ v.voicePiper = voiceCfg.piper; v.voiceClicks = voiceCfg.clicks; v.voiceAmbience = voiceCfg.ambience; EL.saveSettings(v); }); }
+}
+function buildConnCfg(){
+  var provider=$('cfgProvider').value;
+  var cfg={ SIMBRIEF_USERNAME:$('cfgSimbrief').value.trim(), SIMBRIEF_USERID:$('cfgSimbriefId').value.trim(), HOPPIE_LOGON:$('cfgHoppie').value.trim(), LLM_PROVIDER:provider, LLM_DEVICE:$('cfgDevice').value };
+  if(provider==='ollama') cfg.OLLAMA_MODEL=$('cfgModel').value.trim(); else cfg.LLM_MODEL=$('cfgModel').value.trim();
+  return cfg;
+}
+$('saveConn').addEventListener('click',function(){
+  if(EL){ EL.saveConfig(buildConnCfg()).then(function(){ entry('sys','','','Saved. Click "Restart brain" to apply.'); var t=document.querySelector('.tab[data-v="comms"]'); if(t)t.click(); }); }
+  else entry('sys','','','Config editing requires the desktop app.');
+});
+// Theme presets: quick accent swatches.
+(function(){
+  var el=$('themePresets'); if(!el) return;
+  var THEMES=['#6f8cff','#74e6c2','#ff8a6b','#e0a14a','#9b5cff','#5fe08a','#ff5a8a'];
+  THEMES.forEach(function(c){
+    var s=document.createElement('span'); s.className='sw'; s.style.background=c; s.title=c;
+    s.addEventListener('click',function(){ $('setAccent').value=c; document.documentElement.style.setProperty('--accent',c); });
+    el.appendChild(s);
+  });
+})();
+// Settings search: filter rows/sections by text as you type.
+if($('setSearch')) $('setSearch').addEventListener('input',function(){
+  var q=this.value.trim().toLowerCase();
+  document.querySelectorAll('#v-setup .sect').forEach(function(sect){
+    var any=false;
+    sect.querySelectorAll('.row, .note, .pv').forEach(function(row){
+      var match = !q || (row.textContent||'').toLowerCase().indexOf(q)>=0;
+      row.style.display = match ? '' : 'none'; if(match) any=true;
+    });
+    var h=sect.querySelector('h3'); var hMatch = !q || (h&&(h.textContent||'').toLowerCase().indexOf(q)>=0);
+    sect.style.display = (any||hMatch) ? '' : 'none';
+    if(hMatch && h){ sect.querySelectorAll('.row, .note').forEach(function(r){ r.style.display=''; }); }
+  });
+});
+// Export / import settings bundle.
+if($('cfgExport')) $('cfgExport').addEventListener('click',function(){
+  if(!(EL&&EL.exportConfig)) return;
+  EL.exportConfig().then(function(bundle){
+    var blob=new Blob([JSON.stringify(bundle,null,2)],{type:'application/json'});
+    var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='atc-settings.json'; a.click();
+    if($('backupNote')) $('backupNote').textContent='Exported atc-settings.json';
+  });
+});
+if($('cfgImport')) $('cfgImport').addEventListener('click',function(){ if($('cfgImportFile')) $('cfgImportFile').click(); });
+if($('cfgImportFile')) $('cfgImportFile').addEventListener('change',function(e){
+  var f=e.target.files&&e.target.files[0]; if(!f||!(EL&&EL.importConfig)) return;
+  var fr=new FileReader();
+  fr.onload=function(){ try{ var b=JSON.parse(fr.result); EL.importConfig(b).then(function(r){ if($('backupNote')) $('backupNote').textContent=(r&&r.ok)?'Imported — restart brain to apply.':'Import failed.'; loadSetup(); }); }catch(err){ if($('backupNote')) $('backupNote').textContent='Invalid file.'; } };
+  fr.readAsText(f);
+});
+if($('restartBrain')) $('restartBrain').addEventListener('click',function(){
+  if(!(EL&&EL.restartBrain)){ if($('restartNote')) $('restartNote').textContent='Desktop app only.'; return; }
+  var b=$('restartBrain'); b.disabled=true; b.textContent='Restarting…';
+  if($('restartNote')) $('restartNote').textContent='';
+  EL.restartBrain().then(function(r){
+    b.disabled=false; b.textContent='Restart brain (apply changes)';
+    if($('restartNote')) $('restartNote').textContent = (r&&r.ok) ? 'Brain restarted — reconnecting…' : ('Restart failed: '+((r&&r.error)||'unknown'));
+  });
+});
+// Auto-save the connection fields when you leave them, so you don't have to remember the button.
+// Quiet: persists in the background and shows a small inline confirmation, no tab jump.
+var connAutoIds=['cfgSimbrief','cfgSimbriefId','cfgHoppie','cfgProvider','cfgModel','cfgDevice'];
+function autoSaveConn(){
+  if(!EL) return;
+  EL.saveConfig(buildConnCfg()).then(function(){ if($('connSaved')) $('connSaved').textContent='Saved ✓ (restart brain to apply)'; });
+}
+connAutoIds.forEach(function(id){ var el=$(id); if(el){ el.addEventListener('change', autoSaveConn); el.addEventListener('blur', autoSaveConn); } });
+$('saveRealism').addEventListener('click',function(){
+  var cfg={ ATC_STRICTNESS:$('cfgStrict').value, ATC_CHATTER:$('cfgChatter').value };
+  if(EL){ EL.saveConfig(cfg).then(function(){ entry('sys','','','Realism saved. Restart the brain to apply.'); var t=document.querySelector('.tab[data-v="comms"]'); if(t)t.click(); }); }
+  else entry('sys','','','Config editing requires the desktop app.');
+});
+// live preview while sliding
+$('setAccent').addEventListener('input',function(){ document.documentElement.style.setProperty('--accent',$('setAccent').value); });
+$('setFont').addEventListener('input',function(){ document.documentElement.style.setProperty('--fs',(14*parseFloat($('setFont').value))+'px'); });
+
+/* ---- flight info flyout ---- */
+function nm(a,b){ // great-circle distance (nm) between [lat,lon]
+  var R=3440.065, t=Math.PI/180;
+  var dLat=(b[0]-a[0])*t, dLon=(b[1]-a[1])*t;
+  var s=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(a[0]*t)*Math.cos(b[0]*t)*Math.sin(dLon/2)*Math.sin(dLon/2);
+  return Math.round(2*R*Math.asin(Math.sqrt(s)));
+}
+function parseMetar(raw){
+  if(!raw) return null;
+  var o={};
+  var wind=raw.match(/\b(\d{3}|VRB)(\d{2,3})(G(\d{2,3}))?KT\b/);
+  if(wind) o.wind=(wind[1]==='VRB'?'VRB':wind[1]+'°')+' '+parseInt(wind[2],10)+(wind[4]?'G'+parseInt(wind[4],10):'')+' kt';
+  var vis=raw.match(/\b(\d{1,2}(?:\s\d\/\d)?|\d\/\d|M?\d?\/?\d)SM\b/); if(vis) o.vis=vis[1]+' SM';
+  var visM=raw.match(/\s(\d{4})\s/); if(!o.vis&&visM) o.vis=visM[1]+' m';
+  var td=raw.match(/\b(M?\d{2})\/(M?\d{2})\b/); if(td) o.temp=td[1].replace('M','-')+'°/'+td[2].replace('M','-')+'°';
+  var alt=raw.match(/\bA(\d{4})\b/); if(alt) o.alt=(parseInt(alt[1],10)/100).toFixed(2)+' inHg';
+  var qnh=raw.match(/\bQ(\d{4})\b/); if(!o.alt&&qnh) o.alt='Q'+qnh[1];
+  // flight category from ceiling + vis
+  var ceil=raw.match(/\b(BKN|OVC)(\d{3})\b/); var cft=ceil?parseInt(ceil[2],10)*100:99999;
+  var vsm=vis?(vis[1].indexOf('/')>=0?0.5:parseFloat(vis[1])):10;
+  var cat='VFR'; if(cft<500||vsm<1)cat='LIFR'; else if(cft<1000||vsm<3)cat='IFR'; else if(cft<=3000||vsm<=5)cat='MVFR';
+  o.cat=cat;
+  return o;
+}
+var CAT_COLOR={VFR:'#5fe08a',MVFR:'#5bb0ff',IFR:'#ff8a6b',LIFR:'#ff5d9e'};
+function wxBlock(icao, raw){
+  var p=parseMetar(raw);
+  var head='<div class="kv" style="margin-top:9px;"><span>'+esc(icao)+'</span>'+(p?'<b style="margin-left:auto;color:'+CAT_COLOR[p.cat]+'">'+p.cat+'</b>':'')+'</div>';
+  var sum = p ? '<div class="route2">'+[p.wind,p.vis,p.temp,p.alt].filter(Boolean).map(esc).join('  ·  ')+'</div>' : '';
+  return head+sum+'<div class="metar mono">'+esc(raw||'no data')+'</div>';
+}
+function renderDrawer(){
+  var fi=fpinfo||{}; var wx=fi.weather||{};
+  var o=(flight&&flight.origin)||'DEP', dn=(flight&&flight.destination)||'ARR';
+  var h='';
+  (fi.sections||[]).forEach(function(s){
+    if(!s||!s.rows||!s.rows.length) return;
+    h+='<div class="sect"><h3>'+esc(s.title)+'</h3>';
+    s.rows.forEach(function(r){ h+='<div class="kv"><span>'+esc(r[0])+'</span><b>'+esc(r[1])+'</b></div>'; });
+    h+='</div>';
+  });
+  if(fi.route) h+='<div class="sect"><h3>Route</h3><div class="route2">'+esc(fi.route)+'</div></div>';
+  h+='<div class="sect"><h3>Weather</h3>'+wxBlock(o, wx.origin)+wxBlock(dn, wx.dest)+'</div>';
+  $('drawerBody').innerHTML=h;
+}
+function openDrawer(open){
+  var d=$('drawer');
+  if(open){ renderDrawer(); d.classList.add('open'); if(EL&&EL.setDrawer) EL.setDrawer(true); }
+  else { d.classList.remove('open'); if(EL&&EL.setDrawer) EL.setDrawer(false); }
+}
+$('infoBtn').addEventListener('click',function(){ openDrawer(!$('drawer').classList.contains('open')); });
+$('drawerClose').addEventListener('click',function(){ openDrawer(false); });
+if(EL && EL.openWizard){ var ow=$('openWiz'); if(ow) ow.addEventListener('click', function(){ EL.openWizard(); }); }
+function exportLog(){
+  var lines=[];
+  logEl.querySelectorAll('.entry').forEach(function(e){
+    if(e.classList.contains('sys')){ lines.push(e.textContent); return; }
+    var tag=e.querySelector('.tag'), t=e.querySelector('.et'), body=e.querySelector('.ebody');
+    lines.push((t?'['+t.textContent+'] ':'')+(tag?tag.textContent+': ':'')+(body?body.textContent:''));
+  });
+  var header=(flight?flight.callsign+'   '+flight.origin+' -> '+flight.destination+'\n':'')+'Air Traffic Control transcript\n\n';
+  var blob=new Blob([header+lines.join('\n')+'\n'],{type:'text/plain'});
+  var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='atc-transcript.txt'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
+}
+var elx=$('exportLog'); if(elx) elx.addEventListener('click', exportLog);
+
+/* ---- logbook ---- */
+function transcriptText(){
+  var lines=[];
+  logEl.querySelectorAll('.entry').forEach(function(e){
+    if(e.classList.contains('sys')){ lines.push(e.textContent); return; }
+    var tag=e.querySelector('.tag'), body=e.querySelector('.ebody');
+    lines.push((tag?tag.textContent+': ':'')+(body?body.textContent:''));
+  });
+  return lines.join('\n');
+}
+function renderScore(){
+  if(!$('scoreNow')) return;
+  if(lastScore){ $('scoreNow').textContent = 'This flight: '+lastScore.readbackAccuracy+'% readback accuracy ('+lastScore.readbacksCorrect+'/'+lastScore.readbacksExpected+')'+(lastScore.declaredEmergency?' · emergency declared':''); }
+  else { $('scoreNow').textContent = 'No readbacks scored yet — call ATC and read back a clearance.'; }
+}
+function renderLogbook(){
+  if(!EL||!$('logList')) return;
+  EL.getLogbook().then(function(list){
+    var wrap=$('logList'); wrap.innerHTML='';
+    if(!list.length){ wrap.innerHTML='<div class="note">No saved flights yet.</div>'; return; }
+    list.forEach(function(e){
+      var row=document.createElement('div'); row.className='pv';
+      var d=e.savedAt?new Date(e.savedAt):null; var when=d?(d.getMonth()+1)+'/'+d.getDate():'';
+      row.innerHTML='<span>'+esc(e.callsign||'?')+' &middot; '+esc(e.origin||'')+'→'+esc(e.destination||'')+' <span class="pvsz">'+when+'</span></span>'+
+        '<span class="pvok">'+(e.readbackAccuracy!=null?e.readbackAccuracy+'%':'')+(e.declaredEmergency?' ⚠':'')+'</span>';
+      wrap.appendChild(row);
+    });
+  });
+}
+if(EL){
+  $('logbookSect').style.display='block';
+  $('logSave').addEventListener('click',function(){
+    var base = { origin: flight&&flight.origin, destination: flight&&flight.destination, callsign: flight&&flight.callsign, transcript: transcriptText(), track: flightTrack.slice() };
+    if(fpinfo){ base.aircraft = fpinfo.aircraftName||fpinfo.aircraft; base.route = fpinfo.route; base.cruiseAltitudeFt = fpinfo.cruise; base.flightRules = fpinfo.rules;
+      base.alternate = fpinfo.alternate; base.initialAlt = fpinfo.initialAlt;
+      base.ofp = fpinfo.ofp; base.sections = fpinfo.sections; base.weights = fpinfo.weights; base.rawOfp = fpinfo.rawOfp; }
+    var entry = Object.assign(base, lastScore||{});
+    EL.addLogbook(entry).then(function(){ renderLogbook(); entryMsg('Flight saved to logbook.'); });
+  });
+  $('logClear').addEventListener('click',function(){ if(!confirm('Clear the entire logbook?'))return; EL.clearLogbook().then(renderLogbook); });
+  if($('openDash')) $('openDash').addEventListener('click',function(){ if(EL.openDashboard) EL.openDashboard(); });
+}
+function entryMsg(t){ entry('sys','','',t); }
+
+/* ---- Flight School (self-contained trainer; works with no flight loaded) ---- */
+var FS_LESSONS=[
+  { id:'clearance', title:'1. IFR Clearance', beg:'Before you taxi you copy your IFR clearance. Controllers use CRAFT: Clearance limit, Route, Altitude, Frequency, Transponder (squawk). Just read it back in order.', adv:'Copy clearance, CRAFT format. Read back route, altitudes, departure freq, squawk.', say:'Seattle Delivery, Skywest 123, IFR to Portland, ready to copy.' },
+  { id:'taxi', title:'2. Taxi', beg:'After clearance you ask Ground to taxi. They give you a runway and a taxi route (letters). Read back the runway you are told to hold short of — that is the critical part.', adv:'Request taxi; read back runway + hold-short instructions.', say:'Ground, Skywest 123, request taxi.' },
+  { id:'takeoff', title:'3. Takeoff', beg:'At the runway you tell Tower you are ready. Tower clears you for takeoff. Read back "cleared for takeoff" and the runway.', adv:'Report ready; read back takeoff clearance + runway.', say:'Tower, Skywest 123, holding short runway 16 Left, ready for departure.' },
+  { id:'departure', title:'4. Departure', beg:'Airborne, Tower hands you to Departure. Check in with your altitude climbing.', adv:'Check in with assigned/▲ altitude.', say:'Departure, Skywest 123, climbing through three thousand for one zero thousand.' },
+  { id:'enroute', title:'5. Enroute (Center)', beg:'Center handles you at altitude. You can request higher, direct to a fix, or deviate around weather. Keep it short.', adv:'Request climb/direct/deviation as needed; read back.', say:'Center, Skywest 123, request flight level three two zero.' },
+  { id:'approach', title:'6. Approach', beg:'Approach vectors you toward the runway with headings, altitudes, speeds. Read back every heading and altitude.', adv:'Comply + read back vectors; report field in sight for a visual.', say:'Approach, Skywest 123, with you descending to one zero thousand.' },
+  { id:'landing', title:'7. Tower & Landing', beg:'Approach hands you to Tower for landing. Tower clears you to land. Read back "cleared to land" and the runway.', adv:'Read back landing clearance + runway.', say:'Tower, Skywest 123, on the I-L-S runway 10 Right.' },
+];
+var FS_PHRASEBOOK=[
+  ['Get your clearance','[Field] Delivery, [callsign], IFR to [dest], ready to copy.'],
+  ['Request pushback','[Field] Ground, [callsign], request pushback.'],
+  ['Request taxi','Ground, [callsign], request taxi.'],
+  ['Ready for takeoff','Tower, [callsign], holding short runway [rwy], ready for departure.'],
+  ['Check in (climbing)','[Station], [callsign], climbing through [alt].'],
+  ['Request higher','Center, [callsign], request flight level [FL].'],
+  ['Request direct','Center, [callsign], request direct [fix].'],
+  ['Weather deviation','Center, [callsign], request deviation [N] degrees [left/right] for weather.'],
+  ['Field in sight','[callsign], field in sight.'],
+  ['Missed approach','[callsign], going around.'],
+  ['Say again','Say again.'],
+];
+var FS_DECODE=[
+  ['"Climb and maintain one zero thousand."','Climb to 10,000 feet and stay there.'],
+  ['"Fly heading two seven zero, vectors for the I-L-S."','Turn to heading 270; they are steering you onto the ILS approach.'],
+  ['"Cross DUMBA at or above flight level two four zero."','Be at 24,000 feet or higher by the DUMBA waypoint.'],
+  ['"Line up and wait runway 16 Left."','Taxi onto the runway and wait — do NOT take off yet.'],
+  ['"Squawk four five one seven."','Set your transponder code to 4517.'],
+  ['"Contact tower one one eight point three."','Switch your radio to 118.3 and call Tower.'],
+  ['"Reduce speed to two one zero."','Slow to 210 knots.'],
+];
+var fsLevel='beginner', fsTab='lessons';
+function fsProg(){ try{ return JSON.parse(localStorage.getItem('atc.school')||'{}'); }catch(e){ return {}; } }
+function fsSetDone(id){ var p=fsProg(); p[id]=true; localStorage.setItem('atc.school',JSON.stringify(p)); }
+function renderSchool(){
+  var b=$('schoolbody'); if(!b) return; var p=fsProg();
+  if(fsTab==='lessons'){
+    var doneN=FS_LESSONS.filter(function(l){return p[l.id];}).length;
+    b.innerHTML='<div class="schoolprog">Progress: '+doneN+'/'+FS_LESSONS.length+' lessons</div>'+
+      FS_LESSONS.map(function(l){
+        return '<div class="lesson"><h4>'+esc(l.title)+(p[l.id]?' <span class="done">✓</span>':'')+'</h4>'+
+          '<div class="exp">'+esc(fsLevel==='beginner'?l.beg:l.adv)+'</div>'+
+          '<div class="say">'+esc(l.say)+'</div>'+
+          '<button class="btn" style="margin-top:8px;font-size:11px;padding:6px 11px;background:#16273a;color:#cfe0f2;" data-done="'+l.id+'">Mark learned</button></div>';
+      }).join('');
+    b.querySelectorAll('[data-done]').forEach(function(btn){ btn.addEventListener('click',function(){ fsSetDone(btn.getAttribute('data-done')); renderSchool(); }); });
+  } else if(fsTab==='drill'){
+    renderDrill();
+  } else if(fsTab==='phrasebook'){
+    b.innerHTML=FS_PHRASEBOOK.map(function(r){ return '<div class="pbrow"><span class="pbq">'+esc(r[0])+'</span><span class="pba">'+esc(r[1])+'</span></div>'; }).join('');
+  } else if(fsTab==='decode'){
+    b.innerHTML='<div class="schoolprog">Read what ATC said; tap to reveal the plain-English meaning.</div>'+
+      FS_DECODE.map(function(r,i){ return '<div class="pbrow" data-dec="'+i+'" style="cursor:pointer;"><span class="pba">'+esc(r[0])+'</span><span class="pbq" id="dec'+i+'" style="display:none;">→ '+esc(r[1])+'</span></div>'; }).join('');
+    b.querySelectorAll('[data-dec]').forEach(function(row){ row.addEventListener('click',function(){ var d=$('dec'+row.getAttribute('data-dec')); if(d) d.style.display=d.style.display==='none'?'block':'none'; }); });
+  }
+}
+var fsDrillIdx=0;
+function renderDrill(){
+  var b=$('schoolbody'); var l=FS_LESSONS[fsDrillIdx%FS_LESSONS.length];
+  b.innerHTML='<div id="scenarioPick" style="margin-bottom:10px;"></div>'+
+    '<div class="drillq"><b>Scenario '+(fsDrillIdx%FS_LESSONS.length+1)+':</b> '+esc(fsLevel==='beginner'?l.beg:l.adv)+'</div>'+
+    '<div class="note" style="margin:0 0 8px;">Type your radio call:</div>'+
+    '<input class="drillin" id="drillinput" placeholder="Your call to ATC…" />'+
+    '<div style="display:flex;gap:6px;margin-top:8px;"><button class="btn" id="drillcheck" style="font-size:11px;padding:6px 11px;">Check</button>'+
+    '<button class="btn" id="drillshow" style="font-size:11px;padding:6px 11px;background:#16273a;color:#cfe0f2;">Show ideal</button>'+
+    '<button class="btn" id="drillnext" style="font-size:11px;padding:6px 11px;background:#16273a;color:#cfe0f2;">Next</button></div>'+
+    '<div class="drillfb" id="drillfb"></div>';
+  $('drillcheck').addEventListener('click',function(){ gradeDrill(l); });
+  $('drillshow').addEventListener('click',function(){ $('drillfb').className='drillfb'; $('drillfb').textContent='Ideal: '+l.say; });
+  $('drillnext').addEventListener('click',function(){ fsDrillIdx++; renderDrill(); });
+  $('drillinput').addEventListener('keydown',function(e){ if(e.key==='Enter') gradeDrill(l); });
+  renderScenarioPicker();
+}
+// Scenario picker: pulls the curated /api/scenarios list and lets you "fly" one.
+function renderScenarioPicker(){
+  var el=$('scenarioPick'); if(!el) return;
+  fetch(httpBase()+'/api/scenarios',{cache:'no-store'}).then(function(r){return r.json();}).then(function(list){
+    if(!list||!list.length){ el.innerHTML=''; return; }
+    var opts=list.map(function(s,i){ return '<option value="'+i+'">'+esc(s.title)+'</option>'; }).join('');
+    el.innerHTML='<div class="note" style="margin:0 0 4px;">Curated scenarios:</div>'+
+      '<div style="display:flex;gap:6px;"><select id="scnSel" class="drillin" style="flex:1;">'+opts+'</select>'+
+      '<button class="btn" id="scnFly" style="font-size:11px;padding:6px 11px;">Fly this</button></div>'+
+      '<div class="note" id="scnDesc" style="margin-top:4px;">'+esc(list[0].description||'')+'</div>';
+    $('scnSel').addEventListener('change',function(){ var s=list[this.value]; if($('scnDesc')) $('scnDesc').textContent=s.description||''; });
+    $('scnFly').addEventListener('click',function(){
+      var s=list[$('scnSel').value]||list[0];
+      // Jump to COMMS and pre-load an opening clearance request for the scenario's route.
+      var t=document.querySelector('.tab[data-v="comms"]'); if(t) t.click();
+      if($('input')) $('input').value='Delivery, request IFR clearance to '+(s.destination||'destination')+', information Alpha.';
+      entry('sys','','', 'Scenario loaded: '+s.title+' — '+(s.goal||s.description||'')+'. '+(s.inject&&s.inject!=='none'?'(injects: '+s.inject+')':''));
+    });
+  }).catch(function(){ el.innerHTML=''; });
+}
+// Local grading: check the user's call contains the key tokens of the ideal phrasing.
+function gradeDrill(l){
+  var said=($('drillinput').value||'').toLowerCase();
+  var fb=$('drillfb');
+  if(!said.trim()){ fb.className='drillfb bad'; fb.textContent='Say something first.'; return; }
+  // key tokens: callsign-ish + the core verb/keywords from the lesson's ideal call
+  var keys=l.say.toLowerCase().match(/\b(clearance|taxi|pushback|ready|departure|takeoff|climbing|request|direct|deviation|land|approach|holding short|copy|with you)\b/g)||[];
+  var hit=keys.filter(function(k){return said.indexOf(k)>=0;});
+  var pct=keys.length?Math.round(hit.length/keys.length*100):100;
+  if(pct>=60){ fb.className='drillfb ok'; fb.textContent='✓ Good readback ('+pct+'% of key elements). Ideal: '+l.say; fsSetDone(l.id); }
+  else { fb.className='drillfb bad'; fb.textContent='Missing key parts ('+pct+'%). Include the essentials. Ideal: '+l.say; }
+}
+document.querySelectorAll('.lvlbtn').forEach(function(btn){ btn.addEventListener('click',function(){ document.querySelectorAll('.lvlbtn').forEach(function(x){x.classList.remove('active');}); btn.classList.add('active'); fsLevel=btn.getAttribute('data-lvl'); renderSchool(); }); });
+document.querySelectorAll('.schtab').forEach(function(btn){ btn.addEventListener('click',function(){ document.querySelectorAll('.schtab').forEach(function(x){x.classList.remove('active');}); btn.classList.add('active'); fsTab=btn.getAttribute('data-s'); renderSchool(); }); });
+
+/* ---- Diagnostics / perf HUD ---- */
+var diag={ brain:'down', sim:'unknown', latency:null };
+function updateDiagLine(){
+  var el=$('diagLine'); if(!el) return;
+  el.textContent='brain: '+diag.brain+' · sim: '+diag.sim+' · latency: '+(diag.latency!=null?diag.latency+' ms':'—');
+}
+function pollDiag(){
+  var t0=(window.performance&&performance.now)?performance.now():0;
+  fetch(WS_URL.replace(/^ws/,'http').replace(/\/$/,'')+'/api/dashboard',{cache:'no-store'}).then(function(r){return r.json();}).then(function(j){
+    diag.brain='up'; diag.latency=Math.round(((window.performance&&performance.now)?performance.now():0)-t0);
+    diag.sim=(j&&j.live&&j.live.active)?'connected':'not in flight';
+    updateDiagLine();
+  }).catch(function(){ diag.brain='down'; diag.sim='unknown'; updateDiagLine(); });
+}
+setInterval(pollDiag, 5000); pollDiag();
+
+/* ---- v1 surfacing: HTTP base + helpers ---- */
+function httpBase(){ return WS_URL.replace(/^ws/,'http').replace(/\/$/,''); }
+// Readability / signal strength HUD chip (1-5 from position.readability).
+function hudSig(r){ var bars='▁▂▃▄▅'; var s = r>=1&&r<=5 ? (bars.charAt(r-1)+' '+r+'/5') : '—'; hudSet('hud-sig', s, r>=4?'set':(r<=2?'warn':null)); }
+// Live conformance/score chip — polled from /api/report.
+function pollScore(){
+  fetch(httpBase()+'/api/report',{cache:'no-store'}).then(function(r){return r.json();}).then(function(j){
+    if(j&&j.grade){ hudSet('hud-score', j.grade+' '+(j.readbacks&&j.readbacks.accuracy!=null?j.readbacks.accuracy+'%':''), j.grade==='A'||j.grade==='B'?'set':(j.grade==='D'||j.grade==='F'?'warn':null)); }
+  }).catch(function(){});
+}
+setInterval(pollScore, 8000); pollScore();
+// ATIS recorded-loop playback: repeat the ATIS broadcast every loopSeconds until cancelled.
+var atisTimer=null;
+function startAtisLoop(text, seconds){
+  if(atisTimer) clearInterval(atisTimer);
+  var s=Math.max(20, Math.min(120, seconds||45));
+  atisTimer=setInterval(function(){ if(voiceCfg.enabled) speak(text, 'approach'); }, s*1000);
+  entry('sys','','', 'ATIS recording — looping every '+s+'s (tune away to stop).');
+}
+function stopAtisLoop(){ if(atisTimer){ clearInterval(atisTimer); atisTimer=null; } }
+// Visible cue banner for "expect"/handback instructions (briefly highlights).
+function flashCue(text){
+  var b=$('clrbanner'), t=$('clrtext'); if(!b||!t) return;
+  t.textContent='⤴ '+String(text||'').replace(/^[^,]+,\s*/,''); b.style.display='flex';
+  b.style.transition='background .3s'; b.style.background='#1d3a2c';
+  setTimeout(function(){ b.style.background=''; }, 1200);
+}
+// Per-aircraft profile memory: remember callsign/telephony/voice/realism for each aircraft type,
+// and note when we recognize a type from a prior flight. Stored via the Electron profiles IPC.
+// Flight track recording for replay: downsample to ~1 frame / 4s, cap length.
+var flightTrack=[], _lastTrackT=0;
+function recordTrack(m){
+  if(m.lat==null||m.lon==null) return;
+  var now=Date.now();
+  if(now-_lastTrackT < 4000) return;
+  _lastTrackT=now;
+  flightTrack.push({ t: now, lat: m.lat, lon: m.lon, altFt: Math.round(m.altFt||0), hdg: Math.round(m.hdg||0) });
+  if(flightTrack.length > 1200) flightTrack.shift();
+}
+var _profileSavedFor=null;
+function rememberAircraftProfile(icao){
+  if(!icao || !(EL&&EL.getProfiles&&EL.saveProfile) || _profileSavedFor===icao) return;
+  _profileSavedFor=icao;
+  EL.getProfiles().then(function(store){
+    var existing=store && store.profiles && store.profiles[icao];
+    if(existing && existing.callsign){ entry('sys','','', 'Welcome back — remembered profile for '+icao+' ('+existing.callsign+').'); }
+    // Save/refresh the current flight's identity for this type.
+    EL.saveProfile({ aircraftIcao: icao, callsign: flight&&flight.callsign, voice: voiceCfg.piper?'piper':'system', deepRealism: !!voiceCfg.deepRealism });
+  }).catch(function(){});
+}
+// Taxi route ribbon: parse taxiway tokens + runway from a taxi/progressive clearance and render
+// a visual turn-by-turn chain in the GROUND tab.
+function renderTaxiRibbon(text){
+  var el=$('taxiRibbon'); if(!el) return;
+  // Pull runway ("runway 16L") and taxiway tokens (single/two-letter idents spoken or written).
+  var rwy=(text.match(/runway\s+([0-9]{1,2}\s*(?:left|right|center|[LRC])?)/i)||[])[1];
+  // Taxiways: capture sequences like "Alpha", "Bravo two", or letters; map NATO->letter.
+  var NATO={alpha:'A',bravo:'B',charlie:'C',delta:'D',echo:'E',foxtrot:'F',golf:'G',hotel:'H',india:'I',juliet:'J',kilo:'K',lima:'L',mike:'M',november:'N',oscar:'O',papa:'P',quebec:'Q',romeo:'R',sierra:'S',tango:'T'};
+  var steps=[];
+  var re=/\b(alpha|bravo|charlie|delta|echo|foxtrot|golf|hotel|india|juliet|kilo|lima|mike|november|oscar|papa|quebec|romeo|sierra|tango)\b/gi, mm;
+  while((mm=re.exec(text))){ steps.push(NATO[mm[1].toLowerCase()]); }
+  if(steps.length===0 && !rwy){ el.textContent='No taxi clearance yet.'; return; }
+  var chain=steps.map(function(s){ return '<span style="background:#16273a;border:1px solid #213447;border-radius:6px;padding:3px 8px;font:700 12px ui-monospace,monospace;color:#cfe0f2;">'+esc(s)+'</span>'; });
+  if(rwy) chain.push('<span style="background:#10261d;border:1px solid #1d3a2c;border-radius:6px;padding:3px 8px;font:700 12px ui-monospace,monospace;color:#aef0d0;">RWY '+esc(rwy.toUpperCase())+'</span>');
+  el.innerHTML='<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">'+chain.join('<span style="color:#3a4a5a;">→</span>')+'</div>';
+}
+// PLAN tab: winds-aloft cruise suggestion + frequency summary.
+function refreshPlanInfo(){
+  fetch(httpBase()+'/api/winds',{cache:'no-store'}).then(function(r){return r.json();}).then(function(j){
+    if($('windsInfo')&&j) $('windsInfo').textContent='cruise '+flText(j.suggested)+' '+(j.direction||'')+(j.suggested!==j.planned?' (planned '+flText(j.planned)+')':'');
+  }).catch(function(){});
+  fetch(httpBase()+'/api/freqcard',{cache:'no-store'}).then(function(r){return r.json();}).then(function(j){
+    if($('freqInfo')&&j&&j.frequencies){ var top=j.frequencies.slice(0,3).map(function(f){return f.label+' '+f.mhz;}).join(' · '); $('freqInfo').textContent=(j.airport||'')+': '+(top||'no freqs'); }
+  }).catch(function(){});
+}
+if($('copyDiag')) $('copyDiag').addEventListener('click',function(){
+  var info={ app:(EL?'desktop':'browser'), brain:diag.brain, sim:diag.sim, latencyMs:diag.latency,
+    flight:(flight?(flight.callsign+' '+flight.origin+'→'+flight.destination):'none'),
+    controller:curKind, ua:navigator.userAgent, ts:new Date().toISOString() };
+  var text='ATC diagnostics\n'+JSON.stringify(info,null,2);
+  try{ navigator.clipboard.writeText(text).then(function(){ if($('diagLine')) $('diagLine').textContent='Copied diagnostics to clipboard.'; setTimeout(updateDiagLine,1500); }); }
+  catch(e){ if($('diagLine')) $('diagLine').textContent='Copy failed — clipboard blocked.'; }
+});
+
+/* ---- In-app changelog ("what's new", shown once per version) ---- */
+var APP_VERSION='0.3.0';
+var WHATS_NEW=[
+  'Free-flow ATC, conditional clearances, go-around, visual/circle approaches, reroutes',
+  'Flight School: learn ATC radio with lessons, drills & a phrasebook',
+  'Push-to-talk (Ctrl+Shift+Space), COM1/standby panel, flight progress strip',
+  'Live traffic on the map + range rings; granular traffic toggles',
+  'Restart-brain button, settings search/export, themes, accessibility',
+];
+function maybeShowWhatsNew(){
+  try{
+    if(localStorage.getItem('atc.seenVersion')===APP_VERSION) return;
+    entry('sys','','', 'What\'s new in '+APP_VERSION+':\n• '+WHATS_NEW.join('\n• '));
+    localStorage.setItem('atc.seenVersion', APP_VERSION);
+  }catch(e){}
+}
+
+defaultQuick();
+loadSetup();
+renderProgress();
+renderSchool();
+maybeShowWhatsNew();
 connect();
 </script>
 </body>
