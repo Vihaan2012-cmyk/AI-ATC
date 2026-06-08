@@ -140,6 +140,8 @@
   /* ---- Plan view ---- */
   .planhead { flex: 0 0 auto; display: flex; gap: 10px; padding: 10px 13px; border-bottom: 1px solid #182433; font-size: 12px; color: #8aa0b6; }
   .planhead b { color: #eaf2fb; }
+  .planinfo { flex: 0 0 auto; display: flex; gap: 8px; flex-wrap: wrap; padding: 6px 13px; border-bottom: 1px solid #182433; }
+  .planinfo .pinfo { font: 600 11px ui-monospace, Consolas, monospace; color: #9fb0c2; background: #0e1722; border: 1px solid #213447; border-radius: 6px; padding: 3px 8px; }
   #planwrap { flex: 1 1 auto; min-height: 0; position: relative; }
   #map { position: absolute; inset: 0; }
   .leaflet-container { background: #0a0f15 !important; font: 11px "Segoe UI", sans-serif; }
@@ -300,6 +302,8 @@
           <div class="hudc"><span class="hk">SQUAWK</span><span class="hv" id="hud-sq">—</span></div>
           <div class="hudc"><span class="hk">NEXT</span><span class="hv" id="hud-next">—</span></div>
           <div class="hudc"><span class="hk">TRAFFIC</span><span class="hv" id="hud-tfc">—</span></div>
+          <div class="hudc"><span class="hk">SIGNAL</span><span class="hv" id="hud-sig">—</span></div>
+          <div class="hudc"><span class="hk">SCORE</span><span class="hv" id="hud-score">—</span></div>
           <div class="hudc hudx"><span class="hk">EXPECTING</span><span class="hv" id="hud-exp">—</span></div>
         </div>
         <div class="progress" id="progress"></div>
@@ -320,6 +324,10 @@
       <!-- PLAN -->
       <div class="view" id="v-plan">
         <div class="planhead"><span id="planRoute">No flight plan</span></div>
+        <div class="planinfo" id="planInfo">
+          <span class="pinfo" id="windsInfo">cruise —</span>
+          <span class="pinfo" id="freqInfo">freqs —</span>
+        </div>
         <div id="planwrap"><div id="map"></div></div>
         <div class="planfoot mono" id="planFoot"></div>
       </div>
@@ -373,6 +381,11 @@
               <button class="gscen-b" data-scn="control">Control issue</button>
             </div>
             <div class="gfoot" style="padding:8px 0 0;">Declares the emergency, squawks 7700, and gets priority handling. Recorded in your logbook.</div>
+          </div>
+
+          <div class="gsec">
+            <div class="gsec-h">Taxi route</div>
+            <div id="taxiRibbon" style="padding:8px;font-size:12px;color:#6f8197;">No taxi clearance yet.</div>
           </div>
 
           <div class="gsec">
@@ -952,12 +965,12 @@ function connect(){
     if(m.type==='hello'){ flight=m; $('cs').textContent=m.callsign; $('rt').textContent=m.origin+' ▸ '+m.destination; defaultQuick(); }
     else if(m.type==='flightplan'){ plan=m; $('planRoute').innerHTML='<b>'+esc(m.origin)+'</b> &#9656; <b>'+esc(m.destination)+'</b>  &middot; '+(m.aircraft||'')+'  &middot; cruise '+(m.cruise||'?')+' ft'; drawRoute(); }
     else if(m.type==='fpinfo'){ fpinfo=m; if($('drawer').classList.contains('open')) renderDrawer(); renderGroundAircraft(); }
-    else if(m.type==='atc_tx'){ var f=m.freq?Number(m.freq).toFixed(3):''; typeEntry(m.from,f,m.text); speak(m.text, curKind); if(m.freq) $('freq').textContent=Number(m.freq).toFixed(3); hudExpecting(m.expecting); if(m.expecting==='readback') setClearanceBanner(m.text); }
+    else if(m.type==='atc_tx'){ var f=m.freq?Number(m.freq).toFixed(3):''; typeEntry(m.from,f,m.text); speak(m.text, curKind); if(m.freq) $('freq').textContent=Number(m.freq).toFixed(3); hudExpecting(m.expecting); if(m.expecting==='readback') setClearanceBanner(m.text); if(m.atisLoopSeconds) startAtisLoop(m.text, m.atisLoopSeconds); if(/\bexpect\b|remain this frequency/i.test(m.text)) flashCue(m.text); if(/\btaxi\b|progressive/i.test(m.text)) renderTaxiRibbon(m.text); }
     else if(m.type==='state'){ $('stn').textContent=STATION[m.activeController]||''; curKind=m.activeController||curKind; renderProgress(); }
     else if(m.type==='clearance'){ hudApply(m.assigned||{}); if(m.assigned&&m.assigned.nextFreqMhz!=null) comSetStandby(m.assigned.nextFreqMhz); }
     else if(m.type==='squawk'){ hudSet('hud-sq', m.code, 'set'); }
     else if(m.type==='radio'){ var rf=Number(m.com1).toFixed(3); $('freq').textContent=rf; if(m.active){ comSetActive(m.com1); } else { comSetStandby(m.com1); } entry('sys','','', (m.active?'COM1 tuned to ':'COM1 standby set to ')+rf); }
-    else if(m.type==='position'){ pos=m; updatePlanFoot(); updateAircraft(); hudLive(m); if(m.com1Mhz) comSetActive(m.com1Mhz); }
+    else if(m.type==='position'){ pos=m; updatePlanFoot(); updateAircraft(); hudLive(m); if(m.com1Mhz) comSetActive(m.com1Mhz); if(m.readability!=null) hudSig(m.readability); }
     else if(m.type==='traffic'){ updateTraffic(m); updateTrafficMap(m); }
     else if(m.type==='scorecard'){ lastScore=m; renderScore(); }
     else if(m.type==='chatter'){ entry('chatter', m.from, '', m.text); }
@@ -1021,7 +1034,7 @@ function drawPlan(){
   }
 }
 function getCss(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
-function showMap(){ if(typeof L==='undefined') return; if(!map) initMap(); else { map.invalidateSize(); drawRoute(); updateAircraft(); } }
+function showMap(){ refreshPlanInfo(); if(typeof L==='undefined') return; if(!map) initMap(); else { map.invalidateSize(); drawRoute(); updateAircraft(); } }
 function initMap(){
   map=L.map('map',{zoomControl:false,attributionControl:false}).setView([20,0],2);
   // SimBrief-style light terrain: tan/yellow land, blue water (Esri World Topo).
@@ -1370,7 +1383,8 @@ function renderSchool(){
 var fsDrillIdx=0;
 function renderDrill(){
   var b=$('schoolbody'); var l=FS_LESSONS[fsDrillIdx%FS_LESSONS.length];
-  b.innerHTML='<div class="drillq"><b>Scenario '+(fsDrillIdx%FS_LESSONS.length+1)+':</b> '+esc(fsLevel==='beginner'?l.beg:l.adv)+'</div>'+
+  b.innerHTML='<div id="scenarioPick" style="margin-bottom:10px;"></div>'+
+    '<div class="drillq"><b>Scenario '+(fsDrillIdx%FS_LESSONS.length+1)+':</b> '+esc(fsLevel==='beginner'?l.beg:l.adv)+'</div>'+
     '<div class="note" style="margin:0 0 8px;">Type your radio call:</div>'+
     '<input class="drillin" id="drillinput" placeholder="Your call to ATC…" />'+
     '<div style="display:flex;gap:6px;margin-top:8px;"><button class="btn" id="drillcheck" style="font-size:11px;padding:6px 11px;">Check</button>'+
@@ -1381,6 +1395,27 @@ function renderDrill(){
   $('drillshow').addEventListener('click',function(){ $('drillfb').className='drillfb'; $('drillfb').textContent='Ideal: '+l.say; });
   $('drillnext').addEventListener('click',function(){ fsDrillIdx++; renderDrill(); });
   $('drillinput').addEventListener('keydown',function(e){ if(e.key==='Enter') gradeDrill(l); });
+  renderScenarioPicker();
+}
+// Scenario picker: pulls the curated /api/scenarios list and lets you "fly" one.
+function renderScenarioPicker(){
+  var el=$('scenarioPick'); if(!el) return;
+  fetch(httpBase()+'/api/scenarios',{cache:'no-store'}).then(function(r){return r.json();}).then(function(list){
+    if(!list||!list.length){ el.innerHTML=''; return; }
+    var opts=list.map(function(s,i){ return '<option value="'+i+'">'+esc(s.title)+'</option>'; }).join('');
+    el.innerHTML='<div class="note" style="margin:0 0 4px;">Curated scenarios:</div>'+
+      '<div style="display:flex;gap:6px;"><select id="scnSel" class="drillin" style="flex:1;">'+opts+'</select>'+
+      '<button class="btn" id="scnFly" style="font-size:11px;padding:6px 11px;">Fly this</button></div>'+
+      '<div class="note" id="scnDesc" style="margin-top:4px;">'+esc(list[0].description||'')+'</div>';
+    $('scnSel').addEventListener('change',function(){ var s=list[this.value]; if($('scnDesc')) $('scnDesc').textContent=s.description||''; });
+    $('scnFly').addEventListener('click',function(){
+      var s=list[$('scnSel').value]||list[0];
+      // Jump to COMMS and pre-load an opening clearance request for the scenario's route.
+      var t=document.querySelector('.tab[data-v="comms"]'); if(t) t.click();
+      if($('input')) $('input').value='Delivery, request IFR clearance to '+(s.destination||'destination')+', information Alpha.';
+      entry('sys','','', 'Scenario loaded: '+s.title+' — '+(s.goal||s.description||'')+'. '+(s.inject&&s.inject!=='none'?'(injects: '+s.inject+')':''));
+    });
+  }).catch(function(){ el.innerHTML=''; });
 }
 // Local grading: check the user's call contains the key tokens of the ideal phrasing.
 function gradeDrill(l){
@@ -1412,6 +1447,59 @@ function pollDiag(){
   }).catch(function(){ diag.brain='down'; diag.sim='unknown'; updateDiagLine(); });
 }
 setInterval(pollDiag, 5000); pollDiag();
+
+/* ---- v1 surfacing: HTTP base + helpers ---- */
+function httpBase(){ return WS_URL.replace(/^ws/,'http').replace(/\/$/,''); }
+// Readability / signal strength HUD chip (1-5 from position.readability).
+function hudSig(r){ var bars='▁▂▃▄▅'; var s = r>=1&&r<=5 ? (bars.charAt(r-1)+' '+r+'/5') : '—'; hudSet('hud-sig', s, r>=4?'set':(r<=2?'warn':null)); }
+// Live conformance/score chip — polled from /api/report.
+function pollScore(){
+  fetch(httpBase()+'/api/report',{cache:'no-store'}).then(function(r){return r.json();}).then(function(j){
+    if(j&&j.grade){ hudSet('hud-score', j.grade+' '+(j.readbacks&&j.readbacks.accuracy!=null?j.readbacks.accuracy+'%':''), j.grade==='A'||j.grade==='B'?'set':(j.grade==='D'||j.grade==='F'?'warn':null)); }
+  }).catch(function(){});
+}
+setInterval(pollScore, 8000); pollScore();
+// ATIS recorded-loop playback: repeat the ATIS broadcast every loopSeconds until cancelled.
+var atisTimer=null;
+function startAtisLoop(text, seconds){
+  if(atisTimer) clearInterval(atisTimer);
+  var s=Math.max(20, Math.min(120, seconds||45));
+  atisTimer=setInterval(function(){ if(voiceCfg.enabled) speak(text, 'approach'); }, s*1000);
+  entry('sys','','', 'ATIS recording — looping every '+s+'s (tune away to stop).');
+}
+function stopAtisLoop(){ if(atisTimer){ clearInterval(atisTimer); atisTimer=null; } }
+// Visible cue banner for "expect"/handback instructions (briefly highlights).
+function flashCue(text){
+  var b=$('clrbanner'), t=$('clrtext'); if(!b||!t) return;
+  t.textContent='⤴ '+String(text||'').replace(/^[^,]+,\s*/,''); b.style.display='flex';
+  b.style.transition='background .3s'; b.style.background='#1d3a2c';
+  setTimeout(function(){ b.style.background=''; }, 1200);
+}
+// Taxi route ribbon: parse taxiway tokens + runway from a taxi/progressive clearance and render
+// a visual turn-by-turn chain in the GROUND tab.
+function renderTaxiRibbon(text){
+  var el=$('taxiRibbon'); if(!el) return;
+  // Pull runway ("runway 16L") and taxiway tokens (single/two-letter idents spoken or written).
+  var rwy=(text.match(/runway\s+([0-9]{1,2}\s*(?:left|right|center|[LRC])?)/i)||[])[1];
+  // Taxiways: capture sequences like "Alpha", "Bravo two", or letters; map NATO->letter.
+  var NATO={alpha:'A',bravo:'B',charlie:'C',delta:'D',echo:'E',foxtrot:'F',golf:'G',hotel:'H',india:'I',juliet:'J',kilo:'K',lima:'L',mike:'M',november:'N',oscar:'O',papa:'P',quebec:'Q',romeo:'R',sierra:'S',tango:'T'};
+  var steps=[];
+  var re=/\b(alpha|bravo|charlie|delta|echo|foxtrot|golf|hotel|india|juliet|kilo|lima|mike|november|oscar|papa|quebec|romeo|sierra|tango)\b/gi, mm;
+  while((mm=re.exec(text))){ steps.push(NATO[mm[1].toLowerCase()]); }
+  if(steps.length===0 && !rwy){ el.textContent='No taxi clearance yet.'; return; }
+  var chain=steps.map(function(s){ return '<span style="background:#16273a;border:1px solid #213447;border-radius:6px;padding:3px 8px;font:700 12px ui-monospace,monospace;color:#cfe0f2;">'+esc(s)+'</span>'; });
+  if(rwy) chain.push('<span style="background:#10261d;border:1px solid #1d3a2c;border-radius:6px;padding:3px 8px;font:700 12px ui-monospace,monospace;color:#aef0d0;">RWY '+esc(rwy.toUpperCase())+'</span>');
+  el.innerHTML='<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">'+chain.join('<span style="color:#3a4a5a;">→</span>')+'</div>';
+}
+// PLAN tab: winds-aloft cruise suggestion + frequency summary.
+function refreshPlanInfo(){
+  fetch(httpBase()+'/api/winds',{cache:'no-store'}).then(function(r){return r.json();}).then(function(j){
+    if($('windsInfo')&&j) $('windsInfo').textContent='cruise '+flText(j.suggested)+' '+(j.direction||'')+(j.suggested!==j.planned?' (planned '+flText(j.planned)+')':'');
+  }).catch(function(){});
+  fetch(httpBase()+'/api/freqcard',{cache:'no-store'}).then(function(r){return r.json();}).then(function(j){
+    if($('freqInfo')&&j&&j.frequencies){ var top=j.frequencies.slice(0,3).map(function(f){return f.label+' '+f.mhz;}).join(' · '); $('freqInfo').textContent=(j.airport||'')+': '+(top||'no freqs'); }
+  }).catch(function(){});
+}
 if($('copyDiag')) $('copyDiag').addEventListener('click',function(){
   var info={ app:(EL?'desktop':'browser'), brain:diag.brain, sim:diag.sim, latencyMs:diag.latency,
     flight:(flight?(flight.callsign+' '+flight.origin+'→'+flight.destination):'none'),
