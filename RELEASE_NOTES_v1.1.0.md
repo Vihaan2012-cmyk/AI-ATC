@@ -1,8 +1,7 @@
 # AI ATC for MSFS — v1.1.0
 
-A feature release on top of v1.0. New modules were built for 21 requested features; the ones below
-are **wired into the live app**. The rest ship as ready modules that need live-sim/hardware testing
-before they're switched on (listed at the bottom, honestly).
+A feature release on top of v1.0. The features below are new and live; a further batch is built and
+will be enabled in a follow-up update (listed at the end).
 
 ## New & live
 
@@ -27,14 +26,13 @@ before they're switched on (listed at the bottom, honestly).
 - **Multi-monitor** — tear off the COMMS or MAP view into its own always-on-top window for a
   second screen.
 
-## Built, not yet switched on (need in-sim/hardware testing)
+## Coming next (built, not yet switched on)
 
-These modules are complete and compile, but are **not auto-enabled** because they depend on live
-SimConnect data, runway geometry plumbing, the LLM-confidence path, or hardware I can't verify
-headlessly. They'll be enabled in a follow-up once tested in the sim:
+These features are implemented but disabled by default — they depend on live SimConnect data or
+in-sim verification, so they'll be enabled in a follow-up update:
 
 - Live traffic chatter (ATC ↔ AI aircraft) · frequency gating (must be on the right COM) ·
-  tunable ATIS audio · vectors-to-final geometry · runway-incursion warnings · phraseology hints ·
+  tunable ATIS audio · vectors-to-final · runway-incursion warnings · phraseology hints ·
   richer VFR flight-following · stepped-on transmissions · regional voice casting ·
   shareable "ATC tape" export · enhanced CPDLC datalink panel.
 
