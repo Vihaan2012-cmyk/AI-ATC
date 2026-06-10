@@ -36,6 +36,7 @@ import { splitTransmissions } from '../llm/multiIntent.js';
 import { isReadbackAssistRequest, composeReadback } from './readbackAssist.js';
 import { isCtafRequest, detectLeg, composeSelfAnnounce } from './ctaf.js';
 import { isPositionReport, isReportNextRequest, parsePositionReport } from './oceanic.js';
+import { freshState, advanceHumanity, humanize, type HumanityState } from './humanity.js';
 
 interface Controller {
   handle(pilotText: string): Promise<Reply>;
@@ -73,6 +74,10 @@ export class ControllerSession {
   private awaitingReadback = false;
   /** Latest live-traffic picture from the sim, for "say traffic" queries + traffic-aware replies. */
   private traffic: TrafficPicture | null = null;
+  // Controller "humanity": slow-drifting mood/fatigue + per-pilot rapport, layered onto replies.
+  private humanity: HumanityState = freshState();
+  // Whether the pilot's just-scored readback was correct (for the humanity encouragement cue).
+  private awaitingReadbackWasCorrect = false;
   /** The last structured instruction ATC issued, for the "explain that" clarifier. */
   private lastInstruction: LastInstruction | null = null;
   /** Per-session conversational memory for back-references. */
@@ -327,8 +332,10 @@ export class ControllerSession {
     const reply = await this.active.handle(pilotText);
 
     // A correction ("negative ... I say again") means the readback was wrong; otherwise correct.
+    this.awaitingReadbackWasCorrect = false;
     if (this.awaitingReadback) {
       const wasCorrect = !/\bnegative\b|i say again/i.test(reply.text);
+      this.awaitingReadbackWasCorrect = wasCorrect;
       if (wasCorrect) {
         this.readbacksCorrect += 1;
         // Explicit "readback correct" acknowledgement — only when the controller isn't already
@@ -361,6 +368,23 @@ export class ControllerSession {
     }
     this.captureAssignedAltitude(reply.text);
     this.lastFrom = reply.from;
+
+    // Humanity layer: mood/fatigue + rapport, applied as additive warmth on the final text.
+    // Gated behind deep-realism so the default experience stays crisp/professional.
+    if (this.deepRealism) {
+      const hctx = {
+        spokenCs: this.spokenCs,
+        trafficCount: this.traffic?.nearby?.length ?? 0,
+        expectingReadback: reply.expecting === 'readback',
+        readbackCorrect: this.awaitingReadbackWasCorrect,
+        struggled: /say again|disregard|negative/i.test(pilotText),
+        emergency: this.declaredEmergency || this.emergencyStep > 0,
+        closing: reply.handoff != null,
+      };
+      this.humanity = advanceHumanity(this.humanity, hctx);
+      const seedKey = this.fp.callsign + this.kind + this.humanity.rapport.exchanges;
+      reply.text = humanize(reply.text, this.humanity, hctx, seedKey);
+    }
     return reply;
   }
 
